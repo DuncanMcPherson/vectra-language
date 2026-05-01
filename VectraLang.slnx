@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/examples/" />
+  <Folder Name="/examples/Hello World/" />
+  <Folder Name="/Solution Items/">
+    <File Path=".gitignore" />
+    <File Path="README.MD" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/VectraLang.Ast/VectraLang.Ast.csproj" />
+    <Project Path="src/VectraLang/VectraLang.csproj" />
+  </Folder>
+</Solution>
