@@ -11,4 +11,8 @@
         <NeutralLanguage>en-US</NeutralLanguage>
     </PropertyGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\VectraLang.Ast\VectraLang.Ast.csproj" />
+    </ItemGroup>
+
 </Project>

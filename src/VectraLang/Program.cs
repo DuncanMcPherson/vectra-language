@@ -1,8 +1,28 @@
-﻿namespace VectraLang;
+﻿using VectraLang.Ast;
+
+namespace VectraLang;
 
 internal static class Program
 {
     private static void Main(string[] args)
     {
+        if (args.Length != 1)
+        {
+            return;
+        }
+
+        if (!File.Exists(args[0]))
+        {
+            return;
+        }
+        
+        var source = File.ReadAllText(args[0]);
+        
+        var lexer = new Lexer(source, args[0]);
+        var tokens = lexer.Tokenize();
+        foreach (var token in tokens)
+        {
+            Console.WriteLine(token);
+        }
     }
 }

@@ -1,0 +1,7 @@
+﻿space HelloWorldExample;
+
+class Program {
+    void Main() {
+        PrintLine("Hello World!");
+    }
+}

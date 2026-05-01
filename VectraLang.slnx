@@ -1,6 +1,8 @@
 <Solution>
   <Folder Name="/examples/" />
-  <Folder Name="/examples/Hello World/" />
+  <Folder Name="/examples/Hello World/">
+    <File Path="examples/Hello World/HelloWorldExample.vec" />
+  </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".gitignore" />
     <File Path="README.MD" />
