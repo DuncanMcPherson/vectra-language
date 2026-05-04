@@ -8,12 +8,27 @@ public interface ICallable;
 
 public sealed record VectraFile(
     SpaceDecl Space,
-    List<ITopLevelDecl> Declarations,
+    List<EnterDecl> EnterDeclarations,
+    TokenLocation Location) : Node(Location);
+
+public sealed record EnterDecl(
+    string QualifiedName,
     TokenLocation Location) : Node(Location);
 
 public sealed record SpaceDecl(
     Token Name,
-    TokenLocation Location) : Node(Location);
+    SpaceDecl? Parent,
+    List<SpaceDecl> Children,
+    List<ITopLevelDecl> Declarations,
+    TokenLocation Location) : Node(Location)
+{
+    public string QualifiedName => Parent is not null
+        ? $"{Parent.QualifiedName}.{Name.Lexeme}"
+        : Name.Lexeme;
+    
+    public void AddDeclaration(ITopLevelDecl declaration) => Declarations.Add(declaration);
+    public void AddChild(SpaceDecl child) => Children.Add(child);
+}
 
 public sealed record ParameterNode(
     TypeNode Type,
@@ -35,6 +50,13 @@ public sealed record ConstructorDecl(
     List<Token> Modifiers,
     TokenLocation Location) : Node(Location), ICallable;
 
+public sealed record FieldDecl(
+    TypeNode Type,
+    Token Name,
+    Expr? Initializer,
+    List<Token> Modifiers,
+    TokenLocation Location) : Node(Location);
+
 public sealed record PropertyDecl(
     TypeNode Type,
     Token Name,
@@ -48,6 +70,7 @@ public sealed record ClassDecl(
     List<PropertyDecl> Properties,
     List<MethodDecl> Methods,
     List<ConstructorDecl> Constructors,
+    List<FieldDecl> Fields,
     List<Token> Modifiers,
     TokenLocation Location) : Node(Location), ITopLevelDecl;
 

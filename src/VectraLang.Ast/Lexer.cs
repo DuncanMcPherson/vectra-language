@@ -30,6 +30,7 @@ public sealed class Lexer
         { "class", TokenType.Class },
         { "enum", TokenType.Enum },
         { "space", TokenType.Space},
+        { "enter", TokenType.Enter},
         { "interface", TokenType.Interface },
         { "let", TokenType.Let },
 

@@ -20,9 +20,8 @@ internal static class Program
         
         var lexer = new Lexer(source, args[0]);
         var tokens = lexer.Tokenize();
-        foreach (var token in tokens)
-        {
-            Console.WriteLine(token);
-        }
+        var parser = new Parser(tokens);
+        var program = parser.Parse();
+        Console.WriteLine(program);
     }
 }

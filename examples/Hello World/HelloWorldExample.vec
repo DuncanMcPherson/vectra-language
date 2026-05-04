@@ -1,7 +1,15 @@
-﻿space HelloWorldExample;
+﻿enter Vectra.Core.Models;
 
-class Program {
-    void Main() {
+space HelloWorldExample;
+
+public class Program {
+    private static string _name = "Vectra";
+    public string Name { get; set; }; // I need to figure out how to make getters and setters callable
+
+    public Program() {
+    }
+    
+    public void Main() {
         PrintLine("Hello World!");
     }
 }

@@ -1,4 +1,5 @@
-﻿using VectraLang.Ast.AstNodes;
+﻿using System.Text;
+using VectraLang.Ast.AstNodes;
 using VectraLang.Ast.Tokens;
 
 // ReSharper disable ConvertToPrimaryConstructor
@@ -8,7 +9,7 @@ namespace VectraLang.Ast;
 public sealed class Parser
 {
     private readonly IReadOnlyList<Token> _tokens;
-    private int _current = 0;
+    private int _current;
 
     public Parser(IReadOnlyList<Token> tokens)
     {
@@ -18,12 +19,67 @@ public sealed class Parser
     public VectraFile Parse()
     {
         var location = CurrentLocation();
+        var enterDeclarations = ParseEnterDeclarations();
         var space = ParseSpaceDecl();
-        List<ITopLevelDecl> declarations = [];
+
+        while (space.Parent != null)
+            space = space.Parent;
+
+        return new VectraFile(space, enterDeclarations, location);
+    }
+
+    private SpaceDecl ParseSpaceDecl()
+    {
+        if (!Match(TokenType.Space))
+            throw new ParseException("Expected space declaration.", CurrentLocation());
+
+        var location = Previous().Location;
+        SpaceDecl? space = null;
+        do
+        {
+            var name = Consume(TokenType.Identifier, "Expected space name.");
+            var newSpace = new SpaceDecl(name, space, [], [],
+                location with { EndColumn = name.Location.EndColumn, EndLine = name.Location.EndLine });
+            space?.AddChild(newSpace);
+            space = newSpace;
+        } while (!Check(TokenType.Semicolon));
+        Consume(TokenType.Semicolon, "Expected ';' after space declaration.");
 
         while (!IsAtEnd())
-            declarations.Add(ParseDeclaration());
-        return new VectraFile(space, declarations, location);
+        {
+            var decl = ParseDeclaration();
+            space.AddDeclaration(decl);
+        }
+        return space;
+    }
+
+    private List<EnterDecl> ParseEnterDeclarations()
+    {
+        var location = CurrentLocation();
+        if (!Match(TokenType.Enter))
+            return [];
+
+        List<EnterDecl> enterDeclarations = [];
+        while (!Check(TokenType.Space))
+        {
+            var name = ParseQualifiedName();
+            enterDeclarations.Add(new EnterDecl(name, location with {EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine}));
+            Consume(TokenType.Semicolon, "Expected ';' after enter declaration.");
+        }
+
+        return enterDeclarations;
+    }
+
+    private string ParseQualifiedName()
+    {
+        var sb = new StringBuilder();
+        do
+        {
+            sb.Append(Consume(TokenType.Identifier, "Expected identifier in qualified name").Lexeme);
+            if (Match(TokenType.Dot))
+                sb.Append('.');
+        } while (!Check(TokenType.Semicolon));
+        return sb.ToString();
     }
 
     private List<Token> ParseModifiers()
@@ -34,10 +90,151 @@ public sealed class Parser
         return modifiers;
     }
 
+    private ITopLevelDecl ParseDeclaration()
+    {
+        var modifiers = ParseModifiers();
+        if (!Match(TokenType.Class, TokenType.Interface, TokenType.Enum))
+            throw new ParseException("Expected class, interface or enum declaration.", CurrentLocation());
+        var type = Previous();
+        return type.Type switch
+        {
+            TokenType.Class => ParseClassDeclaration(modifiers),
+            TokenType.Interface => ParseInterfaceDeclaration(modifiers),
+            TokenType.Enum => ParseEnumDeclaration(modifiers),
+            _ => throw new Exception()
+        };
+    }
+
+    private ClassDecl ParseClassDeclaration(List<Token> modifiers)
+    {
+        var location = Previous().Location;
+        var name = Consume(TokenType.Identifier, "Expected class name.");
+        var cls = new ClassDecl(name, [], [], [], [], modifiers, location with {EndColumn = name.Location.EndColumn, EndLine = name.Location.EndLine});
+        ParseClassMembers(cls);
+        return cls;
+    }
+
+    private void ParseClassMembers(ClassDecl cls)
+    {
+        // We haven't consumed the opening brace yet
+        Consume(TokenType.LeftBrace, "Expected '{' after class name.");
+        while (!Check(TokenType.RightBrace))
+        {
+            var memberModifiers = ParseModifiers();
+            var type = ParseTypeNode();
+            switch (type)
+            {
+                case InferredTypeNode:
+                    throw new ParseException("Cannot infer type for class member.", Previous().Location);
+                case PrimitiveTypeNode primitive:
+                {
+                    if (primitive.TypeToken.Lexeme == cls.Name.Lexeme && Peek().Type == TokenType.LeftParen)
+                    {
+                        ParseConstructor(memberModifiers, cls, primitive);
+                    }
+
+                    break;
+                }
+            }
+            var name = Consume(TokenType.Identifier, "Expected class member name.");
+            if (Peek().Type == TokenType.Equal)
+            {
+                // Consume the '='
+                Advance();
+                
+                var initializer = ParseExpression();
+                // End the instruction with a semicolon
+                Consume(TokenType.Semicolon, "Expected ';' after field initializer.");
+                cls.Fields.Add(new FieldDecl(type, name, initializer, memberModifiers, type.Location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine }));
+                continue;
+            } 
+            if (Peek().Type == TokenType.Semicolon)
+            {
+                // Consume the semicolon
+                Advance();
+                cls.Fields.Add(new FieldDecl(type, name, null, memberModifiers, type.Location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine }));
+                continue;
+            }
+
+            if (Match(TokenType.LeftParen))
+            {
+                ParseMethod(memberModifiers, cls, type, name);
+                continue;
+            }
+            
+            ParseProperty(memberModifiers, cls, type);
+        }
+        Consume(TokenType.RightBrace, "Expected '}' after class members.");
+    }
+
+    private void ParseConstructor(List<Token> memberModifiers, ClassDecl cls, PrimitiveTypeNode primitive)
+    {
+        // We have not consumed the opening parenthesis yet
+        Consume(TokenType.LeftParen, "Expected '(' after class name.");
+        var parameters = new List<ParameterNode>();
+        while (!Check(TokenType.RightParen))
+        {
+            parameters.Add(ParseParameter());
+            if (!Check(TokenType.Comma))
+                break;
+            Consume(TokenType.Comma, "Expected ',' after parameter.");
+        }
+        Consume(TokenType.RightParen, "Expected ')' after parameters.");
+        if (Peek().Lexeme == ":")
+        {
+            // consume the colon
+            Advance();
+            // TODO: BaseType constructor calls
+        }
+        
+        var body = ParseBlock();
+        
+        cls.Constructors.Add(new ConstructorDecl(
+            cls.Name,
+            parameters,
+            body,
+            memberModifiers,
+            primitive.Location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine }
+        ));
+    }
+
+    private void ParseMethod(List<Token> memberModifiers, ClassDecl cls, TypeNode type, Token nameToken)
+    {
+        // We have already consumed the opening parenthesis
+        var parameters = new List<ParameterNode>();
+        while (!Check(TokenType.RightParen))
+        {
+            parameters.Add(ParseParameter());
+            if (!Check(TokenType.Comma))
+                break;
+            Consume(TokenType.Comma, "Expected ',' after parameter.");
+        }
+        Consume(TokenType.RightParen, "Expected ')' after parameters.");
+        
+        var body = ParseBlock();
+        cls.Methods.Add(new MethodDecl(nameToken, type, parameters, body, memberModifiers, type.Location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine }));
+    }
+    
+    private void ParseProperty(List<Token> memberModifiers, ClassDecl cls, TypeNode type)
+    {
+    }
+
+    private InterfaceDecl ParseInterfaceDeclaration(List<Token> _)
+    {
+        throw new NotImplementedException();
+    }
+    
+    private EnumDecl ParseEnumDeclaration(List<Token> _)
+    {
+        throw new NotImplementedException();
+    }
+
     private TypeNode ParseTypeNode()
     {
         if (Match(TokenType.Let))
             return new InferredTypeNode(Previous().Location);
+        if (Match(TokenType.Void, TokenType.Bool, TokenType.Int, TokenType.Float, TokenType.String))
+            return new PrimitiveTypeNode(Previous(), Previous().Location);
         var typeToken = Consume(TokenType.Identifier, "Expected type name.");
         if (Check(TokenType.Less))
         {
@@ -61,6 +258,8 @@ public sealed class Parser
         return new ParameterNode(type, name, type.Location with {EndColumn = name.Location.EndColumn, EndLine = name.Location.EndLine});
     }
 
+    #region Statements
+    
     private BlockStmt ParseBlock()
     {
         var location = CurrentLocation();
@@ -72,6 +271,127 @@ public sealed class Parser
         Consume(TokenType.RightBrace, "Expected '}'.");
         return new BlockStmt(statements, location with {EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine});
     }
+
+    private Stmt ParseStatement()
+    {
+        var location = CurrentLocation();
+
+        if (Match(TokenType.Int, TokenType.Float, TokenType.String, TokenType.Bool, TokenType.Void))
+        {
+            var type = new PrimitiveTypeNode(Previous(), location);
+            return ParseVarDecl(type);
+        }
+
+        if (Match(TokenType.Let))
+        {
+            var type = new InferredTypeNode(location);
+            return ParseVarDecl(type);
+        }
+        
+        if (Match(TokenType.If))     return ParseIfStmt();
+        if (Match(TokenType.While))  return ParseWhileStmt();
+        if (Match(TokenType.For))    return ParseForStmt();
+        if (Match(TokenType.Return)) return ParseReturnStmt();
+        if (Match(TokenType.Break))  return new BreakStmt(location);
+        if (Match(TokenType.Continue)) return new ContinueStmt(location);
+        if (Check(TokenType.LeftBrace)) return ParseBlock();
+
+        return ParseExprStmt();
+    }
+
+    private VarDeclStmt ParseVarDecl(TypeNode type)
+    {
+        var name = Consume(TokenType.Identifier, "Expected a variable name.");
+        Expr? initializer = null;
+        if (Match(TokenType.Equal))
+        {
+            initializer = ParseExpression();
+        }
+        Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
+        return new VarDeclStmt(type, name, initializer, type.Location);
+    }
+
+    private ExprStmt ParseExprStmt()
+    {
+        var location = CurrentLocation();
+        var expr = ParseExpression();
+        Consume(TokenType.Semicolon, "Expected ';' after expression.");
+        return new ExprStmt(expr, location with {EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine});
+    }
+
+    private IfStmt ParseIfStmt()
+    {
+        var location = Previous().Location;
+        Consume(TokenType.LeftParen, "Expected '(' after 'if'.");
+        var condition = ParseExpression();
+        Consume(TokenType.RightParen, "Expected ')' after if condition.");
+
+        var thenBranch = ParseStatement();
+        Stmt? elseBranch = null;
+        if (Match(TokenType.Else))
+            elseBranch = ParseStatement();
+        return new IfStmt(condition, thenBranch, elseBranch, location with {EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine});
+    }
+
+    private WhileStmt ParseWhileStmt()
+    {
+        var location = Previous().Location;
+        Consume(TokenType.LeftParen, "Expected '(' after 'while'.");
+        var condition = ParseExpression();
+        Consume(TokenType.RightParen, "Expected ')' after while condition.");
+        var body = ParseStatement();
+        return new WhileStmt(condition, body, location with {EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine});
+    }
+
+    private ForStmt ParseForStmt()
+    {
+        var location = Previous().Location;
+        Consume(TokenType.LeftParen, "Expected '(' after 'for'.");
+        Stmt? initializer = null;
+        if (!Check(TokenType.Semicolon))
+        {
+            if (Match(TokenType.Int, TokenType.Float, TokenType.String, TokenType.Bool))
+            {
+                var type = new PrimitiveTypeNode(Previous(), Previous().Location);
+                initializer = ParseVarDecl(type);
+            } else if (Match(TokenType.Let))
+            {
+                var type = new InferredTypeNode(Previous().Location);
+                initializer = ParseVarDecl(type);
+            }
+            else
+            {
+                initializer = ParseStatement();
+            }
+        } else {Consume(TokenType.Semicolon, "Expected ';' after initializer.");}
+        
+        Expr? condition = null;
+        if (!Check(TokenType.Semicolon)) 
+            condition = ParseExpression();
+        Consume(TokenType.Semicolon, "Expected ';' after condition.");
+
+        Expr? incement = null;
+        if (!Check(TokenType.RightParen))
+            incement = ParseExpression();
+        Consume(TokenType.RightParen, "Expected ')' after for clauses.");
+        var body = ParseStatement();
+        
+        return new ForStmt(initializer, condition, incement, body, location with {EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine});
+    }
+
+    private ReturnStmt ParseReturnStmt()
+    {
+        var location = Previous().Location;
+        Expr? value = null;
+        if (!Check(TokenType.Semicolon))
+            value = ParseExpression();
+        Consume(TokenType.Semicolon, "Expected ';' after return value.");
+        return new ReturnStmt(value, location with {EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine});
+    }
+    
+    #endregion
+
+    #region Expressions
 
     private Expr ParsePrimary()
     {
@@ -262,6 +582,7 @@ public sealed class Parser
         return new CallExpr(callee, args, callee.Location with {EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine});
     }
 
+    #endregion
     #region Helpers
 
     // look at current token without consuming

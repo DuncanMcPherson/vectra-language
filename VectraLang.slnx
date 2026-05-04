@@ -11,4 +11,5 @@
     <Project Path="src/VectraLang.Ast/VectraLang.Ast.csproj" />
     <Project Path="src/VectraLang/VectraLang.csproj" />
   </Folder>
+  <Folder Name="/tests/" />
 </Solution>

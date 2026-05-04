@@ -50,6 +50,7 @@ public enum TokenType
     QuestionDot,
     // 4. Keywords
     Space,
+    Enter,
     Void,
     Class,
     Enum,
