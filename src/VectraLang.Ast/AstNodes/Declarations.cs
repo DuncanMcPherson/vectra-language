@@ -45,7 +45,7 @@ public sealed record MethodDecl(
 
 public sealed record ConstructorDecl(
     Token Name, // Should always be the same as the class name
-    List<ParameterNode> Parameter,
+    List<ParameterNode> Parameters,
     BlockStmt Body,
     List<Token> Modifiers,
     TokenLocation Location) : Node(Location), ICallable;

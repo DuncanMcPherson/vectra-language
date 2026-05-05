@@ -130,7 +130,7 @@ internal sealed class AstPrinter
     {
         Block("ctor", () =>
         {
-            PrintValue($"Parameters: {string.Join(", ", ctor.Parameter.Select(PrintParameter))}");
+            PrintValue($"Parameters: {string.Join(", ", ctor.Parameters.Select(PrintParameter))}");
             PrintStatement(ctor.Body);
         });
     }
