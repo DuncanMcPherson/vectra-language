@@ -130,7 +130,7 @@ public sealed class Lexer
 
     private void SkipLineComment()
     {
-        while (Peek() != 'n' && !IsAtEnd())
+        while (Peek() != '\n' && !IsAtEnd())
             Advance();
     }
 

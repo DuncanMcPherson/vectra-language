@@ -4,7 +4,14 @@ space HelloWorldExample;
 
 public class Program {
     private static string _name = "Vectra";
-    public string Name { get; set; }; // I need to figure out how to make getters and setters callable
+    public string Name { 
+	    	get {
+			return this._name;
+		}
+		set {
+			this._name = value;
+		}
+	} // I need to figure out how to make getters and setters callable
 
     public Program() {
     }

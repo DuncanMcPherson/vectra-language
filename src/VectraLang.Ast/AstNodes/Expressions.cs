@@ -21,7 +21,7 @@ public sealed record VariableExpr(
     TokenLocation Location) : Expr(Location);
 
 public sealed record AssignExpr(
-    Token Name,
+    Expr Target,
     Expr Value,
     TokenLocation Location) : Expr(Location);
 

@@ -1,4 +1,5 @@
 ﻿using VectraLang.Ast;
+using VectraLang.Formatters;
 
 namespace VectraLang;
 
@@ -22,6 +23,7 @@ internal static class Program
         var tokens = lexer.Tokenize();
         var parser = new Parser(tokens);
         var program = parser.Parse();
-        Console.WriteLine(program);
+        var prettyPrinter = new AstPrinter();
+        prettyPrinter.Print(program);
     }
 }

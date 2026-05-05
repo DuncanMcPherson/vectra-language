@@ -60,8 +60,8 @@ public sealed record FieldDecl(
 public sealed record PropertyDecl(
     TypeNode Type,
     Token Name,
-    Expr? Getter,
-    Expr? Setter,
+    BlockStmt? Getter,
+    BlockStmt? Setter,
     List<Token> Modifiers,
     TokenLocation Location) : Node(Location);
 

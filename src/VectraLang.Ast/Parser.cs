@@ -131,6 +131,7 @@ public sealed class Parser
                     if (primitive.TypeToken.Lexeme == cls.Name.Lexeme && Peek().Type == TokenType.LeftParen)
                     {
                         ParseConstructor(memberModifiers, cls, primitive);
+                        continue;
                     }
 
                     break;
@@ -162,7 +163,7 @@ public sealed class Parser
                 continue;
             }
             
-            ParseProperty(memberModifiers, cls, type);
+            ParseProperty(memberModifiers, cls, type, name);
         }
         Consume(TokenType.RightBrace, "Expected '}' after class members.");
     }
@@ -215,8 +216,36 @@ public sealed class Parser
         cls.Methods.Add(new MethodDecl(nameToken, type, parameters, body, memberModifiers, type.Location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine }));
     }
     
-    private void ParseProperty(List<Token> memberModifiers, ClassDecl cls, TypeNode type)
+    private void ParseProperty(List<Token> memberModifiers, ClassDecl cls, TypeNode type, Token nameToken)
     {
+        // We have not consumed the opening brace yet
+        var location = Consume(TokenType.LeftBrace, "Expected '{' for property definition.").Location;
+        
+        BlockStmt? getter = null;
+        BlockStmt? setter = null;
+
+        while (!Check(TokenType.RightBrace))
+        {
+            if (Check(TokenType.Identifier) && Peek().Lexeme == "get")
+            {
+                // Consume the "get"
+                Advance();
+                if (getter != null)
+                    throw new ParseException("Cannot have multiple getters in a property.", Previous().Location);
+                getter = ParseBlock();
+            } else if (Check(TokenType.Identifier) && Peek().Lexeme == "set")
+            {
+                // Consume the "set"
+                Advance();
+                if (setter != null)
+                    throw new ParseException("Cannot have multiple setters in a property.", Previous().Location);
+                setter = ParseBlock();
+            }
+        }
+
+        Consume(TokenType.RightBrace, "Expected '}' for property definition.");
+        var prop = new PropertyDecl(type, nameToken, getter, setter, memberModifiers, location with {EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine});
+        cls.Properties.Add(prop);
     }
 
     private InterfaceDecl ParseInterfaceDeclaration(List<Token> _)
@@ -452,8 +481,8 @@ public sealed class Parser
         if (Match(TokenType.Equal))
         {
             var value = ParseAssignment();
-            if (expr is VariableExpr v)
-                return new AssignExpr(v.Name, value, expr.Location with {EndColumn = value.Location.EndColumn, EndLine = value.Location.EndLine});
+            if (expr is VariableExpr or GetExpr or OptionalGetExpr)
+                return new AssignExpr(expr, value, expr.Location with {EndColumn = value.Location.EndColumn, EndLine = value.Location.EndLine});
             throw new ParseException("Invalid assignment target.", Previous().Location);
         }
         return expr;
