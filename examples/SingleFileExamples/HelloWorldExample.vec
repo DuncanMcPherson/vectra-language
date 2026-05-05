@@ -1,0 +1,9 @@
+﻿enter Vectra.Core.Models;
+
+space HelloWorldExample;
+
+public class Program {
+    public void Main() {
+        PrintLine("Hello World!");
+    }
+}
