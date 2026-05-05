@@ -1,0 +1,47 @@
+﻿space PropertyAccessExample;
+
+public static class Program {
+    public static void Main() {
+        // Checks that the new base object methods are available in the interpreter
+        let a = 5;
+        PrintLine(a.ToString());
+        PrintLine(a.GetType());
+        PrintLine(a.GetHashCode());
+        PrintLine(a.Equals(5));
+        
+        let p = new Person("Duncan", 29);
+        PrintLine(p.Name);
+        PrintLine(p.Age);
+        p.Age = 30;
+        PrintLine(p.Age);
+    }
+}
+
+public class Person {
+    private string _name;
+
+    string Name {
+        get {
+            return this._name;
+        }
+        set {
+            this._name = value;
+        }
+    }
+    
+    private int _age;
+
+    public int Age {
+        get {
+            return this._age;
+        }
+        set {
+            this._age = value;
+        }
+    }
+
+    public Person(string name, int age) {
+        this.Name = name;
+        this.Age = age;
+    }
+}

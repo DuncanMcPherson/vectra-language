@@ -44,3 +44,8 @@ public sealed record DestructureExpr(
     List<Token> Names,
     Expr Value,
     TokenLocation Location) : Expr(Location);
+
+public sealed record NewExpr(
+    Token TypeName,
+    List<Expr> Arguments,
+    TokenLocation Location) : Expr(Location);    

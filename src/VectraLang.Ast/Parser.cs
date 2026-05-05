@@ -49,6 +49,7 @@ public sealed class Parser
         {
             var decl = ParseDeclaration();
             space.AddDeclaration(decl);
+            decl.ParentSpace = space;
         }
         return space;
     }
@@ -465,6 +466,24 @@ public sealed class Parser
             Consume(TokenType.Equal, "Expected '=' after destructure pattern.");
             var value = ParseExpression();
             return new DestructureExpr(names, value, location with {EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine});
+        }
+
+        if (Match(TokenType.New))
+        {
+            var typeName = Consume(TokenType.Identifier, "Expected class name after 'new'");
+            Consume(TokenType.LeftParen, "Expected '(' after class name.");
+            
+            List<Expr> arguments = [];
+            if (!Check(TokenType.RightParen))
+            {
+                do
+                {
+                    arguments.Add(ParseExpression());
+                } while (Match(TokenType.Comma));
+            }
+            
+            Consume(TokenType.RightParen, "Expected ')' after constructor arguments.");
+            return new NewExpr(typeName, arguments, location with {EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine});
         }
         
         throw new ParseException($"Unexpected token '{Peek().Lexeme}'.", location);

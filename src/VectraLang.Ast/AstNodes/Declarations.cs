@@ -2,7 +2,13 @@
 
 namespace VectraLang.Ast.AstNodes;
 
-public interface ITopLevelDecl;
+public interface ITopLevelDecl
+{
+    Token Name { get; }
+    SpaceDecl? ParentSpace { get; set; }
+
+    public string GetFullName();
+}
 
 public interface ICallable;
 
@@ -25,7 +31,7 @@ public sealed record SpaceDecl(
     public string QualifiedName => Parent is not null
         ? $"{Parent.QualifiedName}.{Name.Lexeme}"
         : Name.Lexeme;
-    
+
     public void AddDeclaration(ITopLevelDecl declaration) => Declarations.Add(declaration);
     public void AddChild(SpaceDecl child) => Children.Add(child);
 }
@@ -72,7 +78,14 @@ public sealed record ClassDecl(
     List<ConstructorDecl> Constructors,
     List<FieldDecl> Fields,
     List<Token> Modifiers,
-    TokenLocation Location) : Node(Location), ITopLevelDecl;
+    TokenLocation Location) : Node(Location), ITopLevelDecl
+{
+    public SpaceDecl? ParentSpace { get; set; }
+
+    public string GetFullName() => ParentSpace is not null
+        ? $"{ParentSpace.QualifiedName}.{Name.Lexeme}"
+        : Name.Lexeme;
+}
 
 public sealed record EnumVariantNode(
     Token Name,
@@ -86,7 +99,14 @@ public sealed record EnumDecl(
     List<EnumVariantNode> Variants,
     List<MethodDecl> Methods,
     List<Token> Modifiers,
-    TokenLocation Location) : Node(Location), ITopLevelDecl;
+    TokenLocation Location) : Node(Location), ITopLevelDecl
+{
+    public SpaceDecl? ParentSpace { get; set; }
+
+    public string GetFullName() => ParentSpace is not null
+        ? $"{ParentSpace.QualifiedName}.{Name.Lexeme}"
+        : Name.Lexeme;
+}
 
 public sealed record MethodSignatureDecl(
     Token Name,
@@ -98,4 +118,11 @@ public sealed record InterfaceDecl(
     Token Name,
     List<MethodSignatureDecl> Methods,
     List<Token> Modifiers,
-    TokenLocation Location) : Node(Location), ITopLevelDecl;
+    TokenLocation Location) : Node(Location), ITopLevelDecl
+{
+    public SpaceDecl? ParentSpace { get; set; }
+
+    public string GetFullName() => ParentSpace is not null
+        ? $"{ParentSpace.QualifiedName}.{Name.Lexeme}"
+        : Name.Lexeme;
+}
