@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/examples/" />
+  <Folder Name="/examples/EnumTests/">
+    <File Path="examples\EnumTests\EnumNoParameters.vec" />
+  </Folder>
   <Folder Name="/examples/SingleFileExamples/">
     <File Path="examples/SingleFileExamples/HelloWorldExample.vec" />
     <File Path="examples/SingleFileExamples/PropertyAccessExample.vec" />

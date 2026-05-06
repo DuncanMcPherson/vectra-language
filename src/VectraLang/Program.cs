@@ -23,7 +23,9 @@ internal static class Program
         var tokens = lexer.Tokenize();
         var parser = new Parser(tokens);
         var program = parser.Parse();
-        var interpreter = new Interpreter.Interpreter();
-        interpreter.Interpret(program);
+        var printer = new AstPrinter();
+        printer.Print(program);
+        // var interpreter = new Interpreter.Interpreter();
+        // interpreter.Interpret(program);
     }
 }

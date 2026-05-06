@@ -96,6 +96,7 @@ public sealed record EnumVariantNode(
 public sealed record EnumDecl(
     Token Name,
     List<ParameterNode> Parameters,
+    List<FieldDecl> Fields,
     List<EnumVariantNode> Variants,
     List<MethodDecl> Methods,
     List<Token> Modifiers,

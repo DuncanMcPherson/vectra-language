@@ -27,7 +27,7 @@ public sealed class Interpreter
             Console.Write(args[0].RawValue?.ToString() ?? "null");
             return NullValue.Instance;
         }));
-        
+
         _globals.Define("ReadLine", new NativeFunction(0, _ =>
         {
             var line = Console.ReadLine();
@@ -272,10 +272,10 @@ public sealed class Interpreter
             fields.Define(field.Name.Lexeme, value);
         }
 
-        foreach (var prop in cls.Properties)
-        {
-            fields.Define(prop.Name.Lexeme, DefaultValue(prop.Type));
-        }
+        // foreach (var prop in cls.Properties)
+        // {
+            // fields.Define(prop.Name.Lexeme, DefaultValue(prop.Type));
+        // }
 
         var ctor = cls.Constructors.FirstOrDefault(c => c.Parameters.Count == arguments.Count);
         if (ctor is not null)
@@ -344,10 +344,27 @@ public sealed class Interpreter
             case GetExpr g:
                 var obj = Evaluate(g.Object);
                 if (obj is VectraObject vectraObject)
-                    vectraObject.SetField(g.Name.Lexeme, value);
+                {
+                    var property = vectraObject.Declaration.Properties
+                        .FirstOrDefault(p => p.Name.Lexeme == g.Name.Lexeme);
+                    if (property?.Setter is not null)
+                    {
+                        var env = _environment.CreateChild();
+                        env.Define("this", vectraObject);
+                        env.Define("value", value);
+                        ExecuteBlock(property.Setter, env);
+                    }
+                    else
+                    {
+                        vectraObject.SetField(g.Name.Lexeme, value);
+                    }
+                }
                 else
+                {
                     throw new RuntimeException(
-                        $"Cannot assign property '{g.Name.Lexeme}' on non-object type '{obj.GetType().Name}'");
+                        $"Cannot assign to '{g.Name.Lexeme}' because it is not a class.");
+                }
+
                 break;
             case OptionalGetExpr og:
                 var target = Evaluate(og.Object);
@@ -365,46 +382,43 @@ public sealed class Interpreter
     private RuntimeValue EvaluateGet(GetExpr expr)
     {
         var obj = Evaluate(expr.Object);
-        if (obj is VectraObject instance)
+        switch (obj)
         {
-            if (instance.Fields.IsDefined(expr.Name.Lexeme))
+            case VectraObject instance when instance.Fields.IsDefined(expr.Name.Lexeme):
                 return instance.Fields.Get(expr.Name.Lexeme) as RuntimeValue ?? NullValue.Instance;
-
-            var method = instance.Declaration.Methods.FirstOrDefault(m => m.Name.Lexeme == expr.Name.Lexeme);
-            if (method is not null)
+            case VectraObject instance:
             {
-                var env = _environment.CreateChild();
-                env.Define("this", instance);
-                return new VectraMethod(method, env);
+                var method = instance.Declaration.Methods.FirstOrDefault(me => me.Name.Lexeme == expr.Name.Lexeme);
+                if (method is not null)
+                {
+                    var env = _environment.CreateChild();
+                    env.Define("this", instance);
+                    return new VectraMethod(method, env);
+                }
+
+                var property = instance.Declaration.Properties
+                    .FirstOrDefault(p => p.Name.Lexeme == expr.Name.Lexeme);
+                if (property?.Getter is null)
+                    return ObjectMethodsRegistry.Methods.TryGetValue(expr.Name.Lexeme, out var nativeMethod)
+                        ? nativeMethod(obj)
+                        : throw new RuntimeException(
+                            $"Undefined member '{expr.Name.Lexeme}' on '{instance.TypeName}'.");
+                {
+                    var env = _environment.CreateChild();
+                    env.Define("this", instance);
+                    return ExecuteBlock(property.Getter, env);
+                }
             }
-
-            var property = instance.Declaration.Properties
-                .FirstOrDefault(p => p.Name.Lexeme == expr.Name.Lexeme);
-            if (property?.Getter is not null)
-            {
-                var env = _environment.CreateChild();
-                env.Define("this", instance);
-                return ExecuteBlock(property.Getter, env);
-            }
-
-            if (ObjectMethodsRegistry.Methods.TryGetValue(expr.Name.Lexeme, out var nativeMethod))
-                return nativeMethod(obj);
-
-            throw new RuntimeException($"Undefined member '{expr.Name.Lexeme}' on '{instance.TypeName}'.");
-        }
-
-        if (obj is VectraEnumVariant ev)
-        {
-            if (ev.Fields.IsDefined(expr.Name.Lexeme))
+            case VectraEnumVariant ev when ev.Fields.IsDefined(expr.Name.Lexeme):
                 return ev.Fields.Get(expr.Name.Lexeme) as RuntimeValue ?? NullValue.Instance;
-
-            throw new RuntimeException($"Undefined field '{expr.Name.Lexeme}' on '{ev.TypeName}'.");
+            case VectraEnumVariant ev:
+                throw new RuntimeException($"Undefined field '{expr.Name.Lexeme}' on '{ev.TypeName}'.");
         }
-        
-        if (ObjectMethodsRegistry.Methods.TryGetValue(expr.Name.Lexeme, out var m))
-            return m(obj);
 
-        throw new RuntimeException($"Cannot access member '{expr.Name.Lexeme}' on value of type '{obj.TypeName}'.");
+        return ObjectMethodsRegistry.Methods.TryGetValue(expr.Name.Lexeme, out var m)
+            ? m(obj)
+            : throw new RuntimeException(
+                $"Cannot access member '{expr.Name.Lexeme}' on value of type '{obj.TypeName}'.");
     }
 
     private RuntimeValue EvaluateOptionalGet(OptionalGetExpr expr)
@@ -418,7 +432,7 @@ public sealed class Interpreter
     private RuntimeValue EvaluateCall(CallExpr expr)
     {
         var callee = Evaluate(expr.Callee);
-        var arguments = expr.Arguments.Select(a => Evaluate(a)).ToList();
+        var arguments = expr.Arguments.Select(Evaluate).ToList();
         if (callee is CallableValue callable)
         {
             if (callable.Arity != arguments.Count)
@@ -552,7 +566,7 @@ public sealed class Interpreter
                 $"Unknown unary operator '{expr.Operator.Lexeme}'.")
         };
     }
-    
+
     private RuntimeValue EvaluateDestructure(DestructureExpr expr)
     {
         RuntimeValue value = Evaluate(expr.Value);
