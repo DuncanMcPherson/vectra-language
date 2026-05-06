@@ -25,7 +25,7 @@ internal static class Program
         var program = parser.Parse();
         var printer = new AstPrinter();
         printer.Print(program);
-        // var interpreter = new Interpreter.Interpreter();
-        // interpreter.Interpret(program);
+        var interpreter = new Interpreter.Interpreter();
+        interpreter.Interpret(program);
     }
 }

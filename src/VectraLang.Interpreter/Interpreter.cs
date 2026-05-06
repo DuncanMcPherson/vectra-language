@@ -59,8 +59,7 @@ public sealed class Interpreter
                     _globals.Define(cls.Name.Lexeme, cls);
                     break;
                 case EnumDecl e:
-                    _globals.Define(e.Name.Lexeme, e);
-                    RegisterEnumVariants(e);
+                    _globals.Define(e.Name.Lexeme, InstantiateEnum(e));
                     break;
                 case InterfaceDecl:
                     break;
@@ -68,14 +67,25 @@ public sealed class Interpreter
         }
     }
 
-    private void RegisterEnumVariants(EnumDecl e)
+    private VectraEnum InstantiateEnum(EnumDecl e)
     {
+        var variants = new Dictionary<string, VectraEnumVariant>();
         foreach (var variant in e.Variants)
         {
             var fields = new VectraEnvironment();
-            var instance = new VectraEnumVariant(e, variant, fields);
-            _globals.Define($"{e.Name.Lexeme}.{variant.Name.Lexeme}", instance);
+
+            for (var i = 0; i < e.Parameters.Count; i++)
+            {
+                var argValue = i < variant.Arguments.Count
+                    ? Evaluate(variant.Arguments[i])
+                    : DefaultValue(e.Parameters[i].Type);
+                fields.Define(e.Parameters[i].Name.Lexeme, argValue);
+            }
+
+            variants[variant.Name.Lexeme] = new VectraEnumVariant(e, variant, fields);
         }
+
+        return new VectraEnum(e, variants);
     }
 
     private bool TryFindEntryPoint(VectraFile file, out VectraMethod? main)
@@ -382,43 +392,85 @@ public sealed class Interpreter
     private RuntimeValue EvaluateGet(GetExpr expr)
     {
         var obj = Evaluate(expr.Object);
-        switch (obj)
+        if (obj is VectraObject instance)
         {
-            case VectraObject instance when instance.Fields.IsDefined(expr.Name.Lexeme):
-                return instance.Fields.Get(expr.Name.Lexeme) as RuntimeValue ?? NullValue.Instance;
-            case VectraObject instance:
+            if (instance.Fields.IsDefined(expr.Name.Lexeme))
+                return instance.GetField(expr.Name.Lexeme);
+            
+            var method = instance.Declaration.Methods.FirstOrDefault(m => m.Name.Lexeme == expr.Name.Lexeme);
+            if (method is not null)
             {
-                var method = instance.Declaration.Methods.FirstOrDefault(me => me.Name.Lexeme == expr.Name.Lexeme);
-                if (method is not null)
-                {
-                    var env = _environment.CreateChild();
-                    env.Define("this", instance);
-                    return new VectraMethod(method, env);
-                }
-
-                var property = instance.Declaration.Properties
-                    .FirstOrDefault(p => p.Name.Lexeme == expr.Name.Lexeme);
-                if (property?.Getter is null)
-                    return ObjectMethodsRegistry.Methods.TryGetValue(expr.Name.Lexeme, out var nativeMethod)
-                        ? nativeMethod(obj)
-                        : throw new RuntimeException(
-                            $"Undefined member '{expr.Name.Lexeme}' on '{instance.TypeName}'.");
-                {
-                    var env = _environment.CreateChild();
-                    env.Define("this", instance);
-                    return ExecuteBlock(property.Getter, env);
-                }
+                var env = _environment.CreateChild();
+                env.Define("this", instance);
+                return new VectraMethod(method, env);
             }
-            case VectraEnumVariant ev when ev.Fields.IsDefined(expr.Name.Lexeme):
-                return ev.Fields.Get(expr.Name.Lexeme) as RuntimeValue ?? NullValue.Instance;
-            case VectraEnumVariant ev:
-                throw new RuntimeException($"Undefined field '{expr.Name.Lexeme}' on '{ev.TypeName}'.");
+            
+            var property = instance.Declaration.Properties
+                .FirstOrDefault(p => p.Name.Lexeme == expr.Name.Lexeme);
+            if (property?.Getter is not null)
+            {
+                var env = _environment.CreateChild();
+                env.Define("this", instance);
+                return ExecuteBlock(property.Getter, env);
+            }
+
+            if (ObjectMethodsRegistry.Methods.TryGetValue(expr.Name.Lexeme, out var methodInfo))
+                return methodInfo(obj);
+            
+            throw new RuntimeException($"Undefined member '{expr.Name.Lexeme}' on '{instance.TypeName}'.");
         }
 
-        return ObjectMethodsRegistry.Methods.TryGetValue(expr.Name.Lexeme, out var m)
-            ? m(obj)
-            : throw new RuntimeException(
-                $"Cannot access member '{expr.Name.Lexeme}' on value of type '{obj.TypeName}'.");
+        if (obj is VectraEnum ve)
+        {
+            if (ve.Variants.TryGetValue(expr.Name.Lexeme, out var variant))
+                return variant;
+            
+            var method = ve.Declaration.Methods
+                .FirstOrDefault(me => me.Name.Lexeme == expr.Name.Lexeme);
+            if (method is not null)
+            {
+                var env = _environment.CreateChild();
+                return new VectraMethod(method, env);
+            }
+            
+            throw new RuntimeException($"Undefined member '{expr.Name.Lexeme}' on '{ve.TypeName}'.");
+        }
+
+        if (obj is VectraEnumVariant vev)
+        {
+            // FieldAccess
+            if (vev.Fields.IsDefined(expr.Name.Lexeme))
+                return vev.Fields.Get(expr.Name.Lexeme) as RuntimeValue ?? NullValue.Instance;
+            
+            var overrideMethod = vev.Variant.Overrides
+                .FirstOrDefault(ov => ov.Name.Lexeme == expr.Name.Lexeme);
+            if (overrideMethod is not null)
+            {
+                var env = _environment.CreateChild();
+                env.Define("this", vev);
+                return new VectraMethod(overrideMethod, env);
+            }
+            
+            var method = vev.Enum.Methods
+                .FirstOrDefault(me => me.Name.Lexeme == expr.Name.Lexeme);
+            if (method is not null)
+            {
+                var env = _environment.CreateChild();
+                env.Define("this", vev);
+                return new VectraMethod(method, env);
+            }
+            
+            if (ObjectMethodsRegistry.Methods.TryGetValue(expr.Name.Lexeme, out var nativeMethod))
+                return nativeMethod(obj);
+
+            throw new RuntimeException(
+                $"Undefined member '{expr.Name.Lexeme}' on enum variant '{vev.TypeName}'.");
+        }
+        
+        if (ObjectMethodsRegistry.Methods.TryGetValue(expr.Name.Lexeme, out var m))
+            return m(obj);
+
+        throw new RuntimeException($"Cannot access member '{expr.Name.Lexeme}' on value of type '{obj.TypeName}'.");
     }
 
     private RuntimeValue EvaluateOptionalGet(OptionalGetExpr expr)

@@ -99,7 +99,19 @@ internal sealed class AstPrinter
         Block($"enum {@enum.Name.Lexeme}", () =>
         {
             foreach (var variant in @enum.Variants)
-                PrintValue(variant.Name.Lexeme);
+                Block(variant.Name.Lexeme, () =>
+                {
+                    Block("fields", () =>
+                    {
+                        foreach (var arg in variant.Arguments)
+                            PrintValue(PrintExpression(arg));
+                    });
+                    Block("overrides", () =>
+                    {
+                        foreach (var overrideMethod in variant.Overrides)
+                            PrintMethod(overrideMethod);
+                    });
+                });
             foreach (var enumMethod in @enum.Methods)
                 PrintMethod(enumMethod);
         });

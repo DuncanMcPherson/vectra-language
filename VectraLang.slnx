@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/examples/" />
   <Folder Name="/examples/EnumTests/">
+    <File Path="examples/EnumTests/EnumAccess.vec" />
     <File Path="examples\EnumTests\EnumNoParameters.vec" />
   </Folder>
   <Folder Name="/examples/SingleFileExamples/">

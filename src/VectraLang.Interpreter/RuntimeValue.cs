@@ -153,3 +153,17 @@ internal sealed record NativeFunction : CallableValue
     public override RuntimeValue Call(Interpreter interpreter, List<RuntimeValue> arguments) =>
         _fn(arguments);
 }
+
+internal sealed record VectraEnum : RuntimeValue
+{
+    public EnumDecl Declaration { get; }
+    public Dictionary<string, VectraEnumVariant> Variants { get; }
+    public override string TypeName => Declaration.Name.Lexeme;
+    public override object? RawValue => this;
+
+    public VectraEnum(EnumDecl declaration, Dictionary<string, VectraEnumVariant> variants)
+    {
+        Declaration = declaration;
+        Variants = variants;
+    }
+}
