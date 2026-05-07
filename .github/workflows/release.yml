@@ -50,36 +50,36 @@ jobs:
           VERSION: ${{ needs.version.outputs.version }}
         run: |
           python3 - << 'PY'
-                    import os, xml.etree.ElementTree as ET
+          import os, xml.etree.ElementTree as ET
 
-                    version = os.environ['VERSION']
-                    paths = [
-                      "src/VectraLang/VectraLang.csproj",
-                    ]
+          version = os.environ['VERSION']
+          paths = [
+            "src/VectraLang/VectraLang.csproj",
+          ]
 
-                    for path in paths:
-                      tree = ET.parse(path)
-                      root = tree.getroot()
+          for path in paths:
+            tree = ET.parse(path)
+            root = tree.getroot()
 
-                      ns = ""
-                      if root.tag.startswith("{"):
-                        ns = root.tag.split("}")[0] + "}"
-                      def find_or_create(parent, tag):
-                        el = parent.find(f"{ns}{tag}")
-                        if el is None:
-                          el = ET.SubElement(parent, f"{ns}{tag}")
-                        return el
-                      pg = root.find(f"{ns}PropertyGroup")
-                      if pg is None:
-                        pg = ET.SubElement(root, f"{ns}PropertyGroup")
-                      find_or_create(pg, "Version").text = version
-                      find_or_create(pg, "AssemblyVersion").text = version
-                      find_or_create(pg, "FileVersion").text = version
-                      find_or_create(pg, "InformationalVersion").text = version
+            ns = ""
+            if root.tag.startswith("{"):
+              ns = root.tag.split("}")[0] + "}"
+            def find_or_create(parent, tag):
+              el = parent.find(f"{ns}{tag}")
+              if el is None:
+                el = ET.SubElement(parent, f"{ns}{tag}")
+              return el
+            pg = root.find(f"{ns}PropertyGroup")
+            if pg is None:
+              pg = ET.SubElement(root, f"{ns}PropertyGroup")
+            find_or_create(pg, "Version").text = version
+            find_or_create(pg, "AssemblyVersion").text = version
+            find_or_create(pg, "FileVersion").text = version
+            find_or_create(pg, "InformationalVersion").text = version
 
-                      tree.write(path, encoding="utf-8", xml_declaration=True)
-                      print(f"Stamped {path} with version {version}")
-                    PY
+            tree.write(path, encoding="utf-8", xml_declaration=True)
+            print(f"Stamped {path} with version {version}")
+          PY
       - name: Build
         run: |
           dotnet publish src/VectraLang/VectraLang.csproj \
