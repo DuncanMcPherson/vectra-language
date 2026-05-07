@@ -1,0 +1,31 @@
+﻿space EnumAccess;
+
+public class Program {
+    public void Main() {
+        PrintLine("Welcome to Vectra University!");
+        PrintLine("I am a staff member.");
+        People.StaffMember.Greet();
+        PrintLine("This is your professor.");
+        People.Professor.Greet();
+        PrintLine("This is your student.");
+        People.Student.Greet();
+    }
+}
+
+enum People {
+    Student() {
+        public void Greet() {
+            PrintLine("Hi, I am a student.");
+        }
+    }
+    Professor() {
+        public void Greet() {
+            PrintLine("Hi, I am a professor.");
+        }
+    }
+    StaffMember();
+    
+    public void Greet() {
+        PrintLine("Hi!");
+    }
+}

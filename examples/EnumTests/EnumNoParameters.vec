@@ -1,0 +1,47 @@
+space Enums;
+
+enum EnumNoParameters {
+    Option1();
+    Option2();
+    Option3();
+    
+    public static int GetCount() {
+        return 3;
+    }
+}
+
+enum EnumParameters {
+    Option1(25);
+    Option2(50);
+    Option3(75);
+
+    EnumParameters(int value) {}
+    
+    public static EnumParameters Next(EnumParameters value) {
+        if (value == EnumParameters.Option1) {
+            return EnumParameters.Option2;
+        } else if (value == EnumParameters.Option2) {
+            return EnumParameters.Option3;
+        } else {
+            return EnumParameters.Option1;
+        }
+    }
+} 
+
+enum EnumOverrides {
+    Student() {
+        void Greet() {
+            PrintLine("Hi! I'm a student!");
+        }
+    }
+    Professor() {
+        void Greet() {
+            PrintLine("Hi! I teach students!");
+        }
+    }
+    StaffMember();
+    
+    public void Greet() {
+        PrintLine("Hi!");
+    }
+}

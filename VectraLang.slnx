@@ -1,11 +1,22 @@
 <Solution>
   <Folder Name="/examples/" />
-  <Folder Name="/examples/Hello World/">
-    <File Path="examples/Hello World/HelloWorldExample.vec" />
+  <Folder Name="/examples/EnumTests/">
+    <File Path="examples/EnumTests/EnumAccess.vec" />
+    <File Path="examples\EnumTests\EnumNoParameters.vec" />
+  </Folder>
+  <Folder Name="/examples/SingleFileExamples/">
+    <File Path="examples/SingleFileExamples/HelloWorldExample.vec" />
+    <File Path="examples/SingleFileExamples/PropertyAccessExample.vec" />
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".gitignore" />
+    <File Path=".releaserc.json" />
+    <File Path="package.json" />
     <File Path="README.MD" />
+  </Folder>
+  <Folder Name="/Solution Items/Workflows/">
+    <File Path=".github\workflows\ci.yml" />
+    <File Path=".github\workflows\release.yml" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/VectraLang.Ast/VectraLang.Ast.csproj" />

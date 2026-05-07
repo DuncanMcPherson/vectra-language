@@ -2,7 +2,13 @@
 
 namespace VectraLang.Ast.AstNodes;
 
-public interface ITopLevelDecl;
+public interface ITopLevelDecl
+{
+    Token Name { get; }
+    SpaceDecl? ParentSpace { get; set; }
+
+    public string GetFullName();
+}
 
 public interface ICallable;
 
@@ -25,7 +31,7 @@ public sealed record SpaceDecl(
     public string QualifiedName => Parent is not null
         ? $"{Parent.QualifiedName}.{Name.Lexeme}"
         : Name.Lexeme;
-    
+
     public void AddDeclaration(ITopLevelDecl declaration) => Declarations.Add(declaration);
     public void AddChild(SpaceDecl child) => Children.Add(child);
 }
@@ -45,7 +51,7 @@ public sealed record MethodDecl(
 
 public sealed record ConstructorDecl(
     Token Name, // Should always be the same as the class name
-    List<ParameterNode> Parameter,
+    List<ParameterNode> Parameters,
     BlockStmt Body,
     List<Token> Modifiers,
     TokenLocation Location) : Node(Location), ICallable;
@@ -72,7 +78,14 @@ public sealed record ClassDecl(
     List<ConstructorDecl> Constructors,
     List<FieldDecl> Fields,
     List<Token> Modifiers,
-    TokenLocation Location) : Node(Location), ITopLevelDecl;
+    TokenLocation Location) : Node(Location), ITopLevelDecl
+{
+    public SpaceDecl? ParentSpace { get; set; }
+
+    public string GetFullName() => ParentSpace is not null
+        ? $"{ParentSpace.QualifiedName}.{Name.Lexeme}"
+        : Name.Lexeme;
+}
 
 public sealed record EnumVariantNode(
     Token Name,
@@ -83,10 +96,18 @@ public sealed record EnumVariantNode(
 public sealed record EnumDecl(
     Token Name,
     List<ParameterNode> Parameters,
+    List<FieldDecl> Fields,
     List<EnumVariantNode> Variants,
     List<MethodDecl> Methods,
     List<Token> Modifiers,
-    TokenLocation Location) : Node(Location), ITopLevelDecl;
+    TokenLocation Location) : Node(Location), ITopLevelDecl
+{
+    public SpaceDecl? ParentSpace { get; set; }
+
+    public string GetFullName() => ParentSpace is not null
+        ? $"{ParentSpace.QualifiedName}.{Name.Lexeme}"
+        : Name.Lexeme;
+}
 
 public sealed record MethodSignatureDecl(
     Token Name,
@@ -98,4 +119,11 @@ public sealed record InterfaceDecl(
     Token Name,
     List<MethodSignatureDecl> Methods,
     List<Token> Modifiers,
-    TokenLocation Location) : Node(Location), ITopLevelDecl;
+    TokenLocation Location) : Node(Location), ITopLevelDecl
+{
+    public SpaceDecl? ParentSpace { get; set; }
+
+    public string GetFullName() => ParentSpace is not null
+        ? $"{ParentSpace.QualifiedName}.{Name.Lexeme}"
+        : Name.Lexeme;
+}

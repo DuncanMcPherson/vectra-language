@@ -13,6 +13,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\VectraLang.Ast\VectraLang.Ast.csproj" />
+      <ProjectReference Include="..\VectraLang.Interpreter\VectraLang.Interpreter.csproj" />
     </ItemGroup>
 
 </Project>

@@ -17,7 +17,7 @@ internal sealed class AstPrinter
         inner();
         _indent--;
     }
-    
+
     private void PrintValue(string value) => Console.WriteLine($"{Indent}{value}");
 
     public void Print(VectraFile file)
@@ -99,7 +99,19 @@ internal sealed class AstPrinter
         Block($"enum {@enum.Name.Lexeme}", () =>
         {
             foreach (var variant in @enum.Variants)
-                PrintValue(variant.Name.Lexeme);
+                Block(variant.Name.Lexeme, () =>
+                {
+                    Block("fields", () =>
+                    {
+                        foreach (var arg in variant.Arguments)
+                            PrintValue(PrintExpression(arg));
+                    });
+                    Block("overrides", () =>
+                    {
+                        foreach (var overrideMethod in variant.Overrides)
+                            PrintMethod(overrideMethod);
+                    });
+                });
             foreach (var enumMethod in @enum.Methods)
                 PrintMethod(enumMethod);
         });
@@ -130,7 +142,7 @@ internal sealed class AstPrinter
     {
         Block("ctor", () =>
         {
-            PrintValue($"Parameters: {string.Join(", ", ctor.Parameter.Select(PrintParameter))}");
+            PrintValue($"Parameters: {string.Join(", ", ctor.Parameters.Select(PrintParameter))}");
             PrintStatement(ctor.Body);
         });
     }
@@ -187,7 +199,8 @@ internal sealed class AstPrinter
         {
             case VarDeclStmt v:
                 var type = PrintTypeNode(v.Type);
-                PrintValue($"{type} {v.Name.Lexeme} = {(v.Initializer is not null ? PrintExpression(v.Initializer) : "null")}");
+                PrintValue(
+                    $"{type} {v.Name.Lexeme} = {(v.Initializer is not null ? PrintExpression(v.Initializer) : "null")}");
                 break;
             case ExprStmt e:
                 PrintValue(PrintExpression(e.Expression));
@@ -205,7 +218,9 @@ internal sealed class AstPrinter
                     PrintValue(PrintExpression(i.Condition));
                     PrintStatement(i.ThenBranch);
                     if (i.ElseBranch is not null)
-                        PrintStatement(i.ElseBranch);
+                    {
+                        Block("else", () => { PrintStatement(i.ElseBranch); });
+                    }
                 });
                 break;
             case WhileStmt w:
