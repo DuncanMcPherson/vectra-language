@@ -91,3 +91,6 @@ jobs:
       - uses: softprops/action-gh-release@v1
         with:
           files: ./publish/${{ matrix.rid }}/*
+          tag_name: ${{ needs.version.outputs.tag }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
