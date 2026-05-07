@@ -10,7 +10,13 @@
   </Folder>
   <Folder Name="/Solution Items/">
     <File Path=".gitignore" />
+    <File Path=".releaserc.json" />
+    <File Path="package.json" />
     <File Path="README.MD" />
+  </Folder>
+  <Folder Name="/Solution Items/Workflows/">
+    <File Path=".github\workflows\ci.yml" />
+    <File Path=".github\workflows\release.yml" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/VectraLang.Ast/VectraLang.Ast.csproj" />
