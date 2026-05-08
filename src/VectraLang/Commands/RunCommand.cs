@@ -2,7 +2,9 @@ using System.ComponentModel;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using VectraLang.Ast;
+using VectraLang.Ast.AstNodes;
 using VectraLang.Formatters;
+using VectraLang.ModuleLoader;
 // ReSharper disable ClassNeverInstantiated.Global
 // ReSharper disable UnusedAutoPropertyAccessor.Global
 
@@ -69,9 +71,48 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
         }
     }
 
-    private static async Task<int> RunModule(Settings _)
+    private static async Task<int> RunModule(Settings settings)
     {
-        AnsiConsole.MarkupLine("[yellow]Warning:[/] Module support coming soon.");
+        var result = await Loader.Load(settings.File!);
+        foreach (var warning in result.Warnings)
+            AnsiConsole.MarkupLine($"[yellow]Warning:[/] {warning}");
+        if (!result.IsSuccess)
+        {
+            foreach (var error in result.Errors)
+                AnsiConsole.MarkupLine($"[red]Error:[/] {error}");
+            return 1;
+        }
+
+        var module = result.Module!;
+        AnsiConsole.MarkupLine($"[green]Module:[/] {module.Name} ([grey]{module.Type}[/])");
+        AnsiConsole.MarkupLine($"[green]Files:[/] {module.ResolvedSourceFiles.Count} source file(s) resolved");
+        var files = new List<VectraFile>();
+        foreach (var file in module.ResolvedSourceFiles)
+        {
+            try
+            {
+                var source = await File.ReadAllTextAsync(file);
+                var lexer = new Lexer(source, file);
+                var tokens = lexer.Tokenize();
+                var parser = new Parser(tokens);
+                files.Add(parser.Parse());
+
+                if (settings.PrintAst)
+                {
+                    AnsiConsole.MarkupLine($"\n[grey]AST: {file}[/]");
+                    var printer = new AstPrinter();
+                    printer.Print(files[^1]);
+                }
+            }
+            catch (Exception ex)
+            {
+                AnsiConsole.MarkupLine($"[red]Error:[/] Failed to parse '{file}': {ex.Message}");
+                return 1;
+            }
+        }
+
+        // var interpreter = new Interpreter.Interpreter();
+        // TODO: Figure out merging
         return 0;
     }
 

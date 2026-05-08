@@ -10,5 +10,8 @@
       <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.7" />
       <PackageReference Include="Tomlyn" Version="2.3.2" />
     </ItemGroup>
+    <ItemGroup Condition="'$(Configuration)' != 'Release'">
+      <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
+    </ItemGroup>
 
 </Project>
