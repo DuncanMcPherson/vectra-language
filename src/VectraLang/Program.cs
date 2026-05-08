@@ -1,31 +1,13 @@
-﻿using VectraLang.Ast;
-using VectraLang.Formatters;
+﻿using Spectre.Console.Cli;
+using VectraLang.Commands;
 
-namespace VectraLang;
+var app = new CommandApp();
 
-internal static class Program
+app.Configure(config =>
 {
-    private static void Main(string[] args)
-    {
-        if (args.Length != 1)
-        {
-            return;
-        }
+    config.SetApplicationName("vectra");
+    config.AddCommand<RunCommand>("run")
+        .WithDescription("Run a Vectra file, module, or package.");
+});
 
-        if (!File.Exists(args[0]))
-        {
-            return;
-        }
-        
-        var source = File.ReadAllText(args[0]);
-        
-        var lexer = new Lexer(source, args[0]);
-        var tokens = lexer.Tokenize();
-        var parser = new Parser(tokens);
-        var program = parser.Parse();
-        var printer = new AstPrinter();
-        printer.Print(program);
-        var interpreter = new Interpreter.Interpreter();
-        interpreter.Interpret(program);
-    }
-}
+return app.Run(args);
