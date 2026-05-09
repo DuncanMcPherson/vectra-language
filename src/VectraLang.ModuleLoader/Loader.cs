@@ -12,10 +12,15 @@ public static class Loader
     {
         List<string> warnings = [];
         List<string> errors = [];
+        filePath = Path.GetFullPath(filePath);
         try
         {
-            var moduleSource = await File.ReadAllTextAsync(filePath);
-            var toml = TomlSerializer.Deserialize<VmodToml>(moduleSource);
+            var moduleSource = File.OpenRead(filePath);
+            var options = new TomlSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+            };
+            var toml = TomlSerializer.Deserialize<VmodToml>(moduleSource, options);
             if (toml?.Module is null || toml.Sources is null)
                 throw new Exception("Failed to parse TOML");
             var resolvedFilesToBuild = ResolveFileGlobs(toml.Sources, warnings, errors, Path.GetDirectoryName(filePath)!);
@@ -36,7 +41,7 @@ public static class Loader
             let absolute = Path.GetFullPath(Path.Combine(basePath, file))
                 where !File.Exists(absolute)
                     select $"File '{absolute}' does not exist");
-        foreach (var pattern in globs.Globs)
+        foreach (var pattern in globs.Globs!)
         {
             matcher.AddInclude(pattern);
         }

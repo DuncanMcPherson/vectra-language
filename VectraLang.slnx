@@ -8,6 +8,9 @@
   <Folder Name="/examples/ModuleExamples/SimpleHello/">
     <File Path="examples/ModuleExamples/SimpleHello/SimpleHello.vmod" />
   </Folder>
+  <Folder Name="/examples/ModuleExamples/SimpleHello/src/">
+    <File Path="examples\ModuleExamples\SimpleHello\src\Program.vec" />
+  </Folder>
   <Folder Name="/examples/SingleFileExamples/">
     <File Path="examples/SingleFileExamples/HelloWorldExample.vec" />
     <File Path="examples/SingleFileExamples/PropertyAccessExample.vec" />

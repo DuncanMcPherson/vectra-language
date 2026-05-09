@@ -1,0 +1,7 @@
+space TestModule;
+
+public class Program {
+    public void Main() {
+        PrintLine("Hello modules!");
+    }
+}
