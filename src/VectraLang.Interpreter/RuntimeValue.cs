@@ -54,6 +54,7 @@ internal sealed record VectraObject : RuntimeValue
     
     public RuntimeValue GetField(string name) => Fields.Get(name) as RuntimeValue ?? NullValue.Instance;
     public void SetField(string name, RuntimeValue value) => Fields.Assign(name, value);
+    public override string ToString() => $"{TypeName} {{}}";
 }
 
 internal sealed record VectraEnumVariant : RuntimeValue
@@ -100,39 +101,6 @@ internal sealed record VectraMethod : CallableValue
             env.Define(Declaration.Parameters[i].Name.Lexeme, arguments[i]);
         }
         return interpreter.ExecuteBlock(Declaration.Body, env);
-    }
-}
-
-internal sealed record VectraConstructor : CallableValue
-{
-    public ConstructorDecl Declaration { get; }
-    public ClassDecl Owner { get; }
-    public VectraEnvironment Closure { get; }
-    public override string TypeName => "constructor";
-    public override int Arity => Declaration.Parameters.Count;
-
-    public VectraConstructor(ConstructorDecl declaration, ClassDecl owner, VectraEnvironment closure)
-    {
-        Declaration = declaration;
-        Owner = owner;
-        Closure = closure;
-    }
-
-    public override RuntimeValue Call(Interpreter interpreter, List<RuntimeValue> arguments)
-    {
-        var fields = new VectraEnvironment();
-        var instance = new VectraObject(Owner, fields);
-        
-        foreach (var field in Owner.Fields)
-            fields.Define(field.Name.Lexeme, interpreter.DefaultValue(field.Type));
-        var env = Closure.CreateChild();
-        env.Define("this", instance);
-        
-        for (var i = 0; i < Declaration.Parameters.Count; i++)
-            env.Define(Declaration.Parameters[i].Name.Lexeme, arguments[i]);
-
-        interpreter.ExecuteBlock(Declaration.Body, env);
-        return instance;
     }
 }
 

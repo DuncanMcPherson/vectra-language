@@ -13,5 +13,8 @@
     <ItemGroup Condition="'$(Configuration)' != 'Release'">
       <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
     </ItemGroup>
+    <ItemGroup>
+      <ProjectReference Include="..\VectraLang.Ast\VectraLang.Ast.csproj" />
+    </ItemGroup>
 
 </Project>

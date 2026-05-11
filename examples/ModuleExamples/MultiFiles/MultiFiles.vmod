@@ -1,0 +1,9 @@
+[module]
+name = "MultiFiles"
+type = "executable"
+
+[sources]
+files = ["main.vec"]
+globs = ["src/**/*.vec"]
+
+[dependencies]

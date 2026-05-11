@@ -111,8 +111,9 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
             }
         }
 
-        // var interpreter = new Interpreter.Interpreter();
-        // TODO: Figure out merging
+        var interpreter = new Interpreter.Interpreter();
+        var mergedModule = Merger.Merge(result.Module!.Name, files);
+        interpreter.Interpret(mergedModule);
         return 0;
     }
 

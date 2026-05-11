@@ -5,6 +5,13 @@
     <File Path="examples\EnumTests\EnumNoParameters.vec" />
   </Folder>
   <Folder Name="/examples/ModuleExamples/" />
+  <Folder Name="/examples/ModuleExamples/MultiFiles/">
+    <File Path="examples\ModuleExamples\MultiFiles\main.vec" />
+    <File Path="examples\ModuleExamples\MultiFiles\MultiFiles.vmod" />
+  </Folder>
+  <Folder Name="/examples/ModuleExamples/MultiFiles/src/">
+    <File Path="examples\ModuleExamples\MultiFiles\src\Person.vec" />
+  </Folder>
   <Folder Name="/examples/ModuleExamples/SimpleHello/">
     <File Path="examples/ModuleExamples/SimpleHello/SimpleHello.vmod" />
   </Folder>
