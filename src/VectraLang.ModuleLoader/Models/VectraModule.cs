@@ -1,5 +1,10 @@
 ﻿namespace VectraLang.ModuleLoader.Models;
 
+/// <summary>
+/// Represents a module within the VectraLang ecosystem, providing details
+/// such as the module's name, its designated type, resolved source files
+/// for the module, and the directory where the module is located.
+/// </summary>
 public sealed record VectraModule(
     string Name,
     ModuleType Type,

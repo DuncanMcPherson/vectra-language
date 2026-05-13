@@ -117,9 +117,20 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
         return 0;
     }
 
-    private static async Task<int> RunPackage(Settings _)
+    private static async Task<int> RunPackage(Settings settings)
     {
         AnsiConsole.MarkupLine("[yellow]Warning:[/] Package support coming soon.");
+        var packageResult = await Loader.LoadPackage(settings.File!);
+        if (!packageResult.IsSuccess)
+        {
+            foreach (var error in packageResult.Errors)
+                AnsiConsole.MarkupLine($"[red]Error:[/] {error}");
+            return 1;
+        }
+
+        if (packageResult.Warnings.Count == 0) return 0;
+        foreach (var warning in packageResult.Warnings)
+            AnsiConsole.MarkupLine($"[yellow]Warning:[/] {warning}");
         return 0;
     }
     
