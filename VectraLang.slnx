@@ -4,6 +4,20 @@
     <File Path="examples/EnumTests/EnumAccess.vec" />
     <File Path="examples\EnumTests\EnumNoParameters.vec" />
   </Folder>
+  <Folder Name="/examples/ModuleExamples/" />
+  <Folder Name="/examples/ModuleExamples/MultiFiles/">
+    <File Path="examples\ModuleExamples\MultiFiles\main.vec" />
+    <File Path="examples\ModuleExamples\MultiFiles\MultiFiles.vmod" />
+  </Folder>
+  <Folder Name="/examples/ModuleExamples/MultiFiles/src/">
+    <File Path="examples\ModuleExamples\MultiFiles\src\Person.vec" />
+  </Folder>
+  <Folder Name="/examples/ModuleExamples/SimpleHello/">
+    <File Path="examples/ModuleExamples/SimpleHello/SimpleHello.vmod" />
+  </Folder>
+  <Folder Name="/examples/ModuleExamples/SimpleHello/src/">
+    <File Path="examples\ModuleExamples\SimpleHello\src\Program.vec" />
+  </Folder>
   <Folder Name="/examples/SingleFileExamples/">
     <File Path="examples/SingleFileExamples/HelloWorldExample.vec" />
     <File Path="examples/SingleFileExamples/PropertyAccessExample.vec" />
@@ -21,6 +35,7 @@
   <Folder Name="/src/">
     <Project Path="src/VectraLang.Ast/VectraLang.Ast.csproj" />
     <Project Path="src/VectraLang.Interpreter/VectraLang.Interpreter.csproj" />
+    <Project Path="src/VectraLang.ModuleLoader/VectraLang.ModuleLoader.csproj" />
     <Project Path="src/VectraLang/VectraLang.csproj" />
   </Folder>
   <Folder Name="/tests/" />

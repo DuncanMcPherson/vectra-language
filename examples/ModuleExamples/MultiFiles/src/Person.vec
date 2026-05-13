@@ -1,0 +1,18 @@
+space MultiFiles.People;
+
+class Person {
+    public string Name {
+        get {
+            return this._name;
+        }
+        set {
+            this._name = value;
+        }
+    }
+    private string _name;
+   
+    public Person(string name) {
+        this.Name = name;
+    }
+}
+    

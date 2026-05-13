@@ -11,25 +11,25 @@ internal abstract record RuntimeValue
 internal sealed record IntValue(int Value) : RuntimeValue
 {
     public override string TypeName => "int";
-    public override object? RawValue => Value;
+    public override object RawValue => Value;
 }
 
 internal sealed record FloatValue(float Value) : RuntimeValue
 {
     public override string TypeName => "float";
-    public override object? RawValue => Value;
+    public override object RawValue => Value;
 }
 
 internal sealed record StringValue(string Value) : RuntimeValue
 {
     public override string TypeName => "string";
-    public override object? RawValue => Value;
+    public override object RawValue => Value;
 }
 
 internal sealed record BoolValue(bool Value) : RuntimeValue
 {
     public override string TypeName => "bool";
-    public override object? RawValue => Value;
+    public override object RawValue => Value;
 }
 
 internal sealed record NullValue : RuntimeValue
@@ -44,7 +44,7 @@ internal sealed record VectraObject : RuntimeValue
     public ClassDecl Declaration { get; }
     public VectraEnvironment Fields { get; }
     public override string TypeName => Declaration.Name.Lexeme;
-    public override object? RawValue => this;
+    public override object RawValue => this;
 
     public VectraObject(ClassDecl declaration, VectraEnvironment fields)
     {
@@ -54,6 +54,7 @@ internal sealed record VectraObject : RuntimeValue
     
     public RuntimeValue GetField(string name) => Fields.Get(name) as RuntimeValue ?? NullValue.Instance;
     public void SetField(string name, RuntimeValue value) => Fields.Assign(name, value);
+    public override string ToString() => $"{TypeName} {{}}";
 }
 
 internal sealed record VectraEnumVariant : RuntimeValue
@@ -62,7 +63,7 @@ internal sealed record VectraEnumVariant : RuntimeValue
     public EnumVariantNode Variant { get; }
     public VectraEnvironment Fields { get; }
     public override string TypeName => $"{Enum.Name.Lexeme}.{Variant.Name.Lexeme}";
-    public override object? RawValue => this;
+    public override object RawValue => this;
 
     public VectraEnumVariant(EnumDecl enumDecl, EnumVariantNode variant, VectraEnvironment fields)
     {
@@ -76,7 +77,7 @@ internal abstract record CallableValue : RuntimeValue
 {
     public abstract int Arity { get; }
     public abstract RuntimeValue Call(Interpreter interpreter, List<RuntimeValue> arguments);
-    public override object? RawValue => this;
+    public override object RawValue => this;
 }
 
 internal sealed record VectraMethod : CallableValue
@@ -103,39 +104,6 @@ internal sealed record VectraMethod : CallableValue
     }
 }
 
-internal sealed record VectraConstructor : CallableValue
-{
-    public ConstructorDecl Declaration { get; }
-    public ClassDecl Owner { get; }
-    public VectraEnvironment Closure { get; }
-    public override string TypeName => "constructor";
-    public override int Arity => Declaration.Parameters.Count;
-
-    public VectraConstructor(ConstructorDecl declaration, ClassDecl owner, VectraEnvironment closure)
-    {
-        Declaration = declaration;
-        Owner = owner;
-        Closure = closure;
-    }
-
-    public override RuntimeValue Call(Interpreter interpreter, List<RuntimeValue> arguments)
-    {
-        var fields = new VectraEnvironment();
-        var instance = new VectraObject(Owner, fields);
-        
-        foreach (var field in Owner.Fields)
-            fields.Define(field.Name.Lexeme, interpreter.DefaultValue(field.Type));
-        var env = Closure.CreateChild();
-        env.Define("this", instance);
-        
-        for (var i = 0; i < Declaration.Parameters.Count; i++)
-            env.Define(Declaration.Parameters[i].Name.Lexeme, arguments[i]);
-
-        interpreter.ExecuteBlock(Declaration.Body, env);
-        return instance;
-    }
-}
-
 internal sealed record NativeFunction : CallableValue
 {
     private readonly Func<List<RuntimeValue>, RuntimeValue> _fn;
@@ -159,7 +127,7 @@ internal sealed record VectraEnum : RuntimeValue
     public EnumDecl Declaration { get; }
     public Dictionary<string, VectraEnumVariant> Variants { get; }
     public override string TypeName => Declaration.Name.Lexeme;
-    public override object? RawValue => this;
+    public override object RawValue => this;
 
     public VectraEnum(EnumDecl declaration, Dictionary<string, VectraEnumVariant> variants)
     {

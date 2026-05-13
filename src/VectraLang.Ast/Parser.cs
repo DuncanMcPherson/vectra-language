@@ -42,7 +42,7 @@ public sealed class Parser
                 location with { EndColumn = name.Location.EndColumn, EndLine = name.Location.EndLine });
             space?.AddChild(newSpace);
             space = newSpace;
-        } while (!Check(TokenType.Semicolon));
+        } while (Match(TokenType.Dot));
 
         Consume(TokenType.Semicolon, "Expected ';' after space declaration.");
 

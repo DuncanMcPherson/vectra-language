@@ -1,0 +1,8 @@
+[module]
+name = "SimpleHello"
+type = "executable"
+
+[sources]
+globs = ["src/**/*.vec"]
+
+[dependencies]

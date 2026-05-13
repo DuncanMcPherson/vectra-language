@@ -1,5 +1,6 @@
 using VectraLang.Ast.AstNodes;
 using VectraLang.Ast.Tokens;
+using VectraLang.ModuleLoader;
 
 namespace VectraLang.Interpreter;
 
@@ -33,6 +34,29 @@ public sealed class Interpreter
             var line = Console.ReadLine();
             return new StringValue(line!);
         }));
+    }
+
+    public void Interpret(MergedModule module)
+    {
+        foreach (var space in module.SpaceDecls)
+        {
+            RegisterTypes(space);
+        }
+
+        var i = 0;
+        var currentSpace = module.SpaceDecls[i];
+        VectraMethod? main;
+        while (!TryFindInSpace(currentSpace, out main))
+        {
+            i++;
+            currentSpace = module.SpaceDecls[i];
+            if (i >= module.SpaceDecls.Count)
+                throw new RuntimeException("No entry point found. Expected 'main' function.");
+        }
+        
+        if (main is null)
+            throw new RuntimeException("No entry point found. Expected 'main' function.");
+        main.Call(this, new List<RuntimeValue>());
     }
 
     public void Interpret(VectraFile file)
@@ -282,11 +306,6 @@ public sealed class Interpreter
             fields.Define(field.Name.Lexeme, value);
         }
 
-        // foreach (var prop in cls.Properties)
-        // {
-            // fields.Define(prop.Name.Lexeme, DefaultValue(prop.Type));
-        // }
-
         var ctor = cls.Constructors.FirstOrDefault(c => c.Parameters.Count == arguments.Count);
         if (ctor is not null)
         {
@@ -397,7 +416,7 @@ public sealed class Interpreter
             if (instance.Fields.IsDefined(expr.Name.Lexeme))
                 return instance.GetField(expr.Name.Lexeme);
             
-            var method = instance.Declaration.Methods.FirstOrDefault(m => m.Name.Lexeme == expr.Name.Lexeme);
+            var method = instance.Declaration.Methods.FirstOrDefault(met => met.Name.Lexeme == expr.Name.Lexeme);
             if (method is not null)
             {
                 var env = _environment.CreateChild();

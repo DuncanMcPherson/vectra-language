@@ -1,0 +1,11 @@
+space MultiFiles;
+
+class Program {
+    void Main() {
+        Print("Enter your name: ");
+        let name = ReadLine();
+        let person = new Person(name);
+        PrintLine(person.ToString());
+        PrintLine(person.Name);
+    }
+}

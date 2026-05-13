@@ -179,6 +179,7 @@ internal sealed class AstPrinter
             BoolLiteralExpr b => b.Value.ToString(),
             FloatLiteralExpr f => f.Value.ToString(CultureInfo.InvariantCulture),
             NullLiteralExpr => "null",
+            NewExpr n => $"new {n.TypeName.Lexeme}({string.Join(", ", n.Arguments.Select(PrintExpression))})",
             _ => throw new NotImplementedException($"Printing for expression type {e.GetType()} is not implemented")
         };
     }
