@@ -1,0 +1,7 @@
+﻿space SingleModule;
+
+class Program {
+    void Main() {
+        PrintLine("Hello World!");
+    }
+}

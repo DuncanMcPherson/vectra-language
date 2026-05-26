@@ -1,3 +1,7 @@
+[![Release](https://github.com/DuncanMcPherson/vectra-language/actions/workflows/release.yml/badge.svg)](https://github.com/DuncanMcPherson/vectra-language/actions/workflows/release.yml)
+![GitHub Release](https://img.shields.io/github/v/release/DuncanMcPherson/vectra-language)
+![GitHub Release Date](https://img.shields.io/github/release-date/DuncanMcPherson/vectra-language)
+
 # Vectra Language
 
 Vectra is a statically-typed, object-oriented programming language with a clean, C#-inspired syntax. It is implemented as a tree-walk interpreter written in C# targeting .NET 10.

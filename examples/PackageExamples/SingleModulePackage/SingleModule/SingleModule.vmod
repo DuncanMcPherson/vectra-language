@@ -1,0 +1,8 @@
+[module]
+name = "SingleModule"
+type = "executable"
+
+[sources]
+globs = ["src/**/*.vec"]
+
+[dependencies]

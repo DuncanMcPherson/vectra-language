@@ -9,7 +9,8 @@ public sealed record VectraModule(
     string Name,
     ModuleType Type,
     List<string> ResolvedSourceFiles,
-    string ModuleDirectory);
+    string ModuleDirectory,
+    List<string> Dependencies);
 
 public enum ModuleType
 {

@@ -1,0 +1,9 @@
+[module]
+name = "ModuleA"
+type = "executable"
+
+[sources]
+globs = ["src/**/*.vec"]
+
+[dependencies]
+ModuleB = "1.0.0"

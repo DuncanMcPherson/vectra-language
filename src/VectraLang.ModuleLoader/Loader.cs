@@ -65,7 +65,7 @@ public static class Loader
                 ResolveFileGlobs(toml.Sources, warnings, errors, Path.GetDirectoryName(filePath)!);
             return Task.FromResult(new ModuleLoadResult(
                 new VectraModule(toml.Module.Name, ResolveModuleType(toml.Module.Type), resolvedFilesToBuild,
-                    Path.GetDirectoryName(filePath) ?? string.Empty), warnings, errors));
+                    Path.GetDirectoryName(filePath) ?? string.Empty, toml.Dependencies.Select(kvp => kvp.Key).ToList()), warnings, errors));
         }
         catch (Exception ex)
         {
