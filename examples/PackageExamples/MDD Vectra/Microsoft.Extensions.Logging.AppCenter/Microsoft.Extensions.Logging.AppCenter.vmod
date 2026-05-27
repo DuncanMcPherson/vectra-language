@@ -1,0 +1,8 @@
+[module]
+name = "Microsoft.Extensions.Logging.AppCenter"
+type = "library"
+
+[sources]
+globs = []
+
+[dependencies]

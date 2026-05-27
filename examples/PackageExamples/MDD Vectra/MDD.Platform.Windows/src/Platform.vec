@@ -1,0 +1,7 @@
+space MDD.Platform.Windows;
+
+public static class Platform {
+	public static bool IsWindows() {
+		return true;
+	}
+}

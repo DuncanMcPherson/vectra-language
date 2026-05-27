@@ -1,0 +1,9 @@
+[module]
+name = "MDD.Abstractions.Hardware"
+type = "library"
+
+[sources]
+globs = []
+
+[dependencies]
+"MDD.Core.Domain" = "1.0.0"

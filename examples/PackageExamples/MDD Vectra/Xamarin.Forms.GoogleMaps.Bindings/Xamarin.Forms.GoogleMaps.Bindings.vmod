@@ -1,0 +1,8 @@
+[module]
+name = "Xamarin.Forms.GoogleMaps.Bindings"
+type = "library"
+
+[sources]
+globs = []
+
+[dependencies]

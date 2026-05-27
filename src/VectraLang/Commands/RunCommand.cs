@@ -104,7 +104,6 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
 
     private static async Task<int> RunPackage(Settings settings)
     {
-        AnsiConsole.MarkupLine("[yellow]Warning:[/] Package support coming soon.");
         var packageResult = await Loader.LoadPackage(settings.File!);
         if (!packageResult.IsSuccess)
         {
@@ -117,8 +116,9 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
 
         foreach (var warning in packageResult.Warnings)
             AnsiConsole.MarkupLine($"[yellow]Warning:[/] {warning}");
-        // TODO: sort modules, then merge them together for execution
         var mergedPackage = await PackageBuilder.Build(package);
+        var interpreter = new Interpreter.Interpreter();
+        interpreter.Interpret(mergedPackage);
         return 0;
     }
 

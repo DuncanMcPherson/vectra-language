@@ -1,0 +1,17 @@
+[module]
+name = "MDD.Maui"
+type = "executable"
+
+[sources]
+globs = [
+	"src/**/*.vec"
+]
+
+[dependencies]
+"Microsoft.Extensions.Logging.AppCenter" = "1.0.0"
+GPSSender = "1.0.0"
+"MDD.Platform.Windows" = "1.0.0"
+EFC = "1.0.0"
+"MDD.Platform.Android" = "1.0.0"
+"Xamarin.Forms.GoogleMaps.Bindings" = "1.0.0"
+"MDD.Core.Application" = "1.0.0"

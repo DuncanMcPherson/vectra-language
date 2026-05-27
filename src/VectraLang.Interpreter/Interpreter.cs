@@ -36,6 +36,30 @@ public sealed class Interpreter
         }));
     }
 
+    public void Interpret(MergedPackage package)
+    {
+        foreach (var mod in package.Modules)
+            foreach (var space in mod.SpaceDecls)
+                RegisterTypes(space);
+
+        var executables = package.Modules.Where(m => m.IsExecutable).ToList();
+        if (executables.Count == 0)
+            throw new RuntimeException("No executable module found.");
+
+        VectraMethod? main = null;
+        foreach (var module in executables)
+        {
+            foreach (var space in module.SpaceDecls)
+                if (TryFindInSpace(space, out main) && main is not null)
+                    break;
+        }
+        
+        if (main is null)
+            throw new RuntimeException("No entry point found. Expected 'Main' function.");
+
+        main.Call(this, []);
+    }
+
     public void Interpret(MergedModule module)
     {
         foreach (var space in module.SpaceDecls)
@@ -51,11 +75,11 @@ public sealed class Interpreter
             i++;
             currentSpace = module.SpaceDecls[i];
             if (i >= module.SpaceDecls.Count)
-                throw new RuntimeException("No entry point found. Expected 'main' function.");
+                throw new RuntimeException("No entry point found. Expected 'Main' function.");
         }
         
         if (main is null)
-            throw new RuntimeException("No entry point found. Expected 'main' function.");
+            throw new RuntimeException("No entry point found. Expected 'Main' function.");
         main.Call(this, new List<RuntimeValue>());
     }
 
@@ -555,6 +579,17 @@ public sealed class Interpreter
             return new FloatValue(lf.Value + rf.Value);
         if (left is StringValue ls && right is StringValue rs)
             return new StringValue(ls.Value + rs.Value);
+        if (left is StringValue l)
+        {
+            var rightString = right.RawValue!.ToString();
+            return new StringValue(l.Value + rightString);
+        }
+
+        if (right is StringValue r)
+        {
+            var leftString = left.RawValue!.ToString();
+            return new StringValue(leftString + r.Value);
+        }
 
         // int + float promotion
         if (left is IntValue lint && right is FloatValue rfloat)

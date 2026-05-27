@@ -1,0 +1,12 @@
+[module]
+name = "MDD.Core.Application"
+type = "library"
+
+[sources]
+globs = []
+
+[dependencies]
+CadMessaging = "1.0.0"
+GPSReceiver = "1.0.0"
+"MDD.Core.Infrastructure" = "1.0.0"
+IdenRadio = "1.0.0"

@@ -24,6 +24,6 @@ public static class ModuleBuilder
                 throw new InvalidOperationException($"Failed to parse '{file}'", ex);
             }
         }
-        return Merger.Merge(module.Name, files);
+        return Merger.Merge(module.Name, files, module.Type == ModuleType.Executable);
     }
 }

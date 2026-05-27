@@ -1,0 +1,11 @@
+[module]
+name = "MDD.Platform.Android"
+type = "library"
+
+[sources]
+globs = []
+
+[dependencies]
+"MDD.Common" = "1.0.0"
+UsbSerialForAndroid = "1.0.0"
+"MDD.Abstractions.USB" = "1.0.0"

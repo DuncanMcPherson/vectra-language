@@ -1,0 +1,31 @@
+[package]
+name = "MDD"
+version = "0.1.0"
+
+[workspace]
+modules = [
+	"CadMessaging/CadMessaging",
+	"CadMessaging.Tests/CadMessaging.Tests",
+	"EFC/EFC",
+	"GPSReceiver/GPSReceiver",
+	"GPSReceiver.Tests/GPSReceiver.Tests",
+	"GPSSender/GPSSender",
+	"IdenRadio/IdenRadio",
+	"MDD.Abstractions.Hardware/MDD.Abstractions.Hardware",
+	"MDD.Abstractions.Platform/MDD.Abstractions.Platform",
+	"MDD.Abstractions.USB/MDD.Abstractions.USB",
+	"MDD.ApiClients/MDD.ApiClients",
+	"MDD.Common/MDD.Common",
+	"MDD.Core.Application/MDD.Core.Application",
+	"MDD.Core.Domain/MDD.Core.Domain",
+	"MDD.Core.Infrastructure/MDD.Core.Infrastructure",
+	"MDD.Data/MDD.Data",
+	"MDD.Maui/MDD.Maui",
+	"MDD.Platform.Android/MDD.Platform.Android",
+	"MDD.Platform.Windows/MDD.Platform.Windows",
+	"Microsoft.Extensions.Logging.AppCenter/Microsoft.Extensions.Logging.AppCenter",
+	"UsbSerialForAndroid/UsbSerialForAndroid",
+	"Xamarin.Forms.GoogleMaps.Bindings/Xamarin.Forms.GoogleMaps.Bindings"
+]
+
+[dependencies]

@@ -1,0 +1,9 @@
+[module]
+name = "MDD.Abstractions.USB"
+type = "library"
+
+[sources]
+globs = []
+
+[dependencies]
+"MDD.Abstractions.Hardware" = "1.0.0"
