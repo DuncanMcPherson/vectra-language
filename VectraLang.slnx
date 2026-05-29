@@ -50,7 +50,7 @@
     <File Path=".gitignore" />
     <File Path=".releaserc.json" />
     <File Path="package.json" />
-    <File Path="README.MD" />
+    <File Path="README.md" />
   </Folder>
   <Folder Name="/Solution Items/Workflows/">
     <File Path=".github\workflows\ci.yml" />
