@@ -63,23 +63,17 @@ public sealed class Interpreter
     public void Interpret(MergedModule module)
     {
         foreach (var space in module.SpaceDecls)
-        {
             RegisterTypes(space);
-        }
 
-        var i = 0;
-        var currentSpace = module.SpaceDecls[i];
-        VectraMethod? main;
-        while (!TryFindInSpace(currentSpace, out main))
-        {
-            i++;
-            currentSpace = module.SpaceDecls[i];
-            if (i >= module.SpaceDecls.Count)
-                throw new RuntimeException("No entry point found. Expected 'Main' function.");
-        }
+        VectraMethod? main = null;
+        
+        foreach (var space in module.SpaceDecls)
+            if (TryFindInSpace(space, out main) && main is not null)
+                break;
         
         if (main is null)
             throw new RuntimeException("No entry point found. Expected 'Main' function.");
+        
         main.Call(this, new List<RuntimeValue>());
     }
 
