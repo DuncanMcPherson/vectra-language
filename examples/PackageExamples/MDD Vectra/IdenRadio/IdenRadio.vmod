@@ -1,0 +1,9 @@
+[module]
+name = "IdenRadio"
+type = "library"
+
+[sources]
+globs = []
+
+[dependencies]
+"MDD.Data" = "1.0.0"

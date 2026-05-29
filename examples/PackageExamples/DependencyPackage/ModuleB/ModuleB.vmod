@@ -1,0 +1,8 @@
+[module]
+name = "ModuleB"
+type = "library"
+
+[sources]
+globs = ["src/**/*.vec"]
+
+[dependencies]

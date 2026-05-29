@@ -1,5 +1,8 @@
 <Solution>
-  <Folder Name="/examples/" />
+  <Folder Name="/examples/">
+    <File Path="examples/SingleFileExamples/HelloWorldExample.vec" />
+    <File Path="examples/SingleFileExamples/PropertyAccessExample.vec" />
+  </Folder>
   <Folder Name="/examples/EnumTests/">
     <File Path="examples/EnumTests/EnumAccess.vec" />
     <File Path="examples\EnumTests\EnumNoParameters.vec" />
@@ -17,6 +20,27 @@
   </Folder>
   <Folder Name="/examples/ModuleExamples/SimpleHello/src/">
     <File Path="examples\ModuleExamples\SimpleHello\src\Program.vec" />
+  </Folder>
+  <Folder Name="/examples/PackageExamples/" />
+  <Folder Name="/examples/PackageExamples/DependencyPackage/">
+    <File Path="examples/PackageExamples/DependencyPackage/DependencyPackage.vpkg" />
+  </Folder>
+  <Folder Name="/examples/PackageExamples/DependencyPackage/ModuleA/">
+    <File Path="examples/PackageExamples/DependencyPackage/ModuleA/ModuleA.vmod" />
+  </Folder>
+  <Folder Name="/examples/PackageExamples/DependencyPackage/ModuleA/src/" />
+  <Folder Name="/examples/PackageExamples/DependencyPackage/ModuleB/">
+    <File Path="examples/PackageExamples/DependencyPackage/ModuleB/ModuleB.vmod" />
+  </Folder>
+  <Folder Name="/examples/PackageExamples/DependencyPackage/ModuleB/src/" />
+  <Folder Name="/examples/PackageExamples/SingleModulePackage/">
+    <File Path="examples/PackageExamples/SingleModulePackage/SingleModulePackage.vpkg" />
+  </Folder>
+  <Folder Name="/examples/PackageExamples/SingleModulePackage/SingleModule/">
+    <File Path="examples/PackageExamples/SingleModulePackage/SingleModule/SingleModule.vmod" />
+  </Folder>
+  <Folder Name="/examples/PackageExamples/SingleModulePackage/SingleModule/src/">
+    <File Path="examples/PackageExamples/SingleModulePackage/SingleModule/src/Program.vec" />
   </Folder>
   <Folder Name="/examples/SingleFileExamples/">
     <File Path="examples/SingleFileExamples/HelloWorldExample.vec" />

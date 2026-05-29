@@ -5,6 +5,7 @@ using VectraLang.Ast;
 using VectraLang.Ast.AstNodes;
 using VectraLang.Formatters;
 using VectraLang.ModuleLoader;
+
 // ReSharper disable ClassNeverInstantiated.Global
 // ReSharper disable UnusedAutoPropertyAccessor.Global
 
@@ -86,43 +87,41 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
         var module = result.Module!;
         AnsiConsole.MarkupLine($"[green]Module:[/] {module.Name} ([grey]{module.Type}[/])");
         AnsiConsole.MarkupLine($"[green]Files:[/] {module.ResolvedSourceFiles.Count} source file(s) resolved");
-        var files = new List<VectraFile>();
-        foreach (var file in module.ResolvedSourceFiles)
-        {
-            try
-            {
-                var source = await File.ReadAllTextAsync(file);
-                var lexer = new Lexer(source, file);
-                var tokens = lexer.Tokenize();
-                var parser = new Parser(tokens);
-                files.Add(parser.Parse());
 
-                if (settings.PrintAst)
-                {
-                    AnsiConsole.MarkupLine($"\n[grey]AST: {file}[/]");
-                    var printer = new AstPrinter();
-                    printer.Print(files[^1]);
-                }
-            }
-            catch (Exception ex)
-            {
-                AnsiConsole.MarkupLine($"[red]Error:[/] Failed to parse '{file}': {ex.Message}");
-                return 1;
-            }
+        try
+        {
+            var mergedModule = await ModuleBuilder.Build(module);
+            var interpreter = new Interpreter.Interpreter();
+            interpreter.Interpret(mergedModule);
+            return 0;
+        }
+        catch (Exception e)
+        {
+            AnsiConsole.MarkupLine($"[red]Error: [/] {e.Message}");
+            return 1;
+        }
+    }
+
+    private static async Task<int> RunPackage(Settings settings)
+    {
+        var packageResult = await Loader.LoadPackage(settings.File!);
+        if (!packageResult.IsSuccess)
+        {
+            foreach (var error in packageResult.Errors)
+                AnsiConsole.MarkupLine($"[red]Error:[/] {error}");
+            return 1;
         }
 
+        var package = packageResult.Package!;
+
+        foreach (var warning in packageResult.Warnings)
+            AnsiConsole.MarkupLine($"[yellow]Warning:[/] {warning}");
+        var mergedPackage = await PackageBuilder.Build(package);
         var interpreter = new Interpreter.Interpreter();
-        var mergedModule = Merger.Merge(result.Module!.Name, files);
-        interpreter.Interpret(mergedModule);
+        interpreter.Interpret(mergedPackage);
         return 0;
     }
 
-    private static async Task<int> RunPackage(Settings _)
-    {
-        AnsiConsole.MarkupLine("[yellow]Warning:[/] Package support coming soon.");
-        return 0;
-    }
-    
     private static int UnknownExtension(string? file)
     {
         AnsiConsole.MarkupLine($"[red]Error: [/]Unknown file extension: {file}");

@@ -1,0 +1,9 @@
+[module]
+name = "MDD.Platform.Windows"
+type = "library"
+
+[sources]
+globs = ["src/**/*.vec"]
+
+[dependencies]
+"MDD.Common" = "1.0.0"

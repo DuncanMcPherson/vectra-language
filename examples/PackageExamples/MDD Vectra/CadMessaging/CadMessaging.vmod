@@ -1,0 +1,9 @@
+[module]
+name = "CadMessaging"
+type = "library"
+
+[sources]
+globs = []
+
+[dependencies]
+"MDD.ApiClients" = "1.0.0"

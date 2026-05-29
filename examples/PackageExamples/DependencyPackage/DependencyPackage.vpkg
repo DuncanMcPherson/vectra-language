@@ -1,0 +1,11 @@
+[package]
+name = "DependencyPackage"
+version = "0.1.0"
+
+[workspace]
+modules = [
+    "ModuleA/ModuleA.vmod",
+    "ModuleB/ModuleB.vmod",
+]
+
+[dependencies]

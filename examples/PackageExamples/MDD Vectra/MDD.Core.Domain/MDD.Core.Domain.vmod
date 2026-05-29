@@ -1,0 +1,8 @@
+[module]
+name = "MDD.Core.Domain"
+type = "library"
+
+[sources]
+globs = []
+
+[dependencies]

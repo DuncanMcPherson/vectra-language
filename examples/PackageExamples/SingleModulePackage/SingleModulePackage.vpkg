@@ -1,0 +1,10 @@
+[package]
+name = "SingleModulePackage"
+version = "0.1.0"
+
+[workspace]
+modules = [
+    "SingleModule/SingleModule.vmod"
+]
+
+[dependencies]

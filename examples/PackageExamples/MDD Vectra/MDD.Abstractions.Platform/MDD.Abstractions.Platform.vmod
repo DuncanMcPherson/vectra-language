@@ -1,0 +1,8 @@
+[module]
+name = "MDD.Abstractions.Platform"
+type = "library"
+
+[sources]
+globs = []
+
+[dependencies]

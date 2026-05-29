@@ -1,0 +1,9 @@
+[module]
+name = "MDD.Data"
+type = "library"
+
+[sources]
+globs = []
+
+[dependencies]
+"MDD.Common" = "1.0.0"

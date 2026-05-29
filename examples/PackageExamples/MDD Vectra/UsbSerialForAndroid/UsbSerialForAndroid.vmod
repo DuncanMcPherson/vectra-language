@@ -1,0 +1,8 @@
+[module]
+name = "UsbSerialForAndroid"
+type = "library"
+
+[sources]
+globs = []
+
+[dependencies]

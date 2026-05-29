@@ -1,0 +1,9 @@
+[module]
+name = "GPSReceiver.Tests"
+type = "tests"
+
+[sources]
+globs = []
+
+[dependencies]
+GPSReceiver = "1.0.0"

@@ -1,0 +1,9 @@
+[module]
+name = "CadMessaging.Tests"
+type = "tests"
+
+[sources]
+globs = []
+
+[dependencies]
+CadMessaging = "1.0.0"

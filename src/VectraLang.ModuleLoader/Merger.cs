@@ -4,7 +4,7 @@ namespace VectraLang.ModuleLoader;
 
 public static class Merger
 {
-    public static MergedModule Merge(string moduleName, List<VectraFile> files)
+    public static MergedModule Merge(string moduleName, List<VectraFile> files, bool isExecutable)
     {
         var spaces = new List<SpaceDecl>();
         var allDeclarations = new List<ITopLevelDecl>();
@@ -16,7 +16,7 @@ public static class Merger
             CollectFromChildren(file.Space, allDeclarations);
         }
         
-        return new MergedModule(moduleName, spaces, allDeclarations);
+        return new MergedModule(moduleName, spaces, allDeclarations, isExecutable);
     }
 
     private static void CollectFromChildren(SpaceDecl space, List<ITopLevelDecl> allDeclarations)

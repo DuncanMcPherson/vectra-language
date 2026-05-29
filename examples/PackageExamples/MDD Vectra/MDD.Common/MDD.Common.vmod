@@ -1,0 +1,9 @@
+[module]
+name = "MDD.Common"
+type = "library"
+
+[sources]
+globs = []
+
+[dependencies]
+"MDD.Abstractions.Platform" = "1.0.0"
