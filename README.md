@@ -6,7 +6,7 @@
 
 Vectra is a statically-typed, object-oriented programming language with a clean, C#-inspired syntax. It is implemented as a tree-walk interpreter written in C# targeting .NET 10.
 
-> **Status:** Work in progress. The lexer and parser are complete. The interpreter is functional with ongoing work to support enums.
+> **Status:** Work in progress. Package and module loading are functional, and the interpreter is able to correctly select entry points.
 
 ---
 
