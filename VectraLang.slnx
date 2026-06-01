@@ -58,6 +58,8 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/VectraLang.Ast/VectraLang.Ast.csproj" />
+    <Project Path="src/VectraLang.Binding/VectraLang.Binding.csproj" />
+    <Project Path="src/VectraLang.Core/VectraLang.Core.csproj" />
     <Project Path="src/VectraLang.Interpreter/VectraLang.Interpreter.csproj" />
     <Project Path="src/VectraLang.ModuleLoader/VectraLang.ModuleLoader.csproj" />
     <Project Path="src/VectraLang/VectraLang.csproj" />

@@ -2,7 +2,6 @@ using System.ComponentModel;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using VectraLang.Ast;
-using VectraLang.Ast.AstNodes;
 using VectraLang.Formatters;
 using VectraLang.ModuleLoader;
 
@@ -49,11 +48,10 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
         ArgumentNullException.ThrowIfNull(settings.File);
         try
         {
-            var source = await File.ReadAllTextAsync(settings.File!, ct);
-            var lexer = new Lexer(source, settings.File);
-            var tokens = lexer.Tokenize();
-            var parser = new Parser(tokens);
-            var program = parser.Parse();
+            var res = await FileBuilder.Build(settings.File, ct);
+            if (!res.Success)
+                return 1;
+            var program = res.Value!;
 
             if (settings.PrintAst)
             {

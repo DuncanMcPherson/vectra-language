@@ -8,10 +8,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\VectraLang.Core\VectraLang.Core.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <PackageReference Include="Spectre.Console" Version="0.55.2" />
+        <ProjectReference Include="..\VectraLang.Ast\VectraLang.Ast.csproj" />
     </ItemGroup>
 
 </Project>

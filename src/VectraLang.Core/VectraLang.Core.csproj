@@ -6,12 +6,4 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\VectraLang.Core\VectraLang.Core.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <PackageReference Include="Spectre.Console" Version="0.55.2" />
-    </ItemGroup>
-
 </Project>

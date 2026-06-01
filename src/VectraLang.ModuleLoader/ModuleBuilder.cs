@@ -13,11 +13,10 @@ public static class ModuleBuilder
         {
             try
             {
-                var source = await File.ReadAllTextAsync(file);
-                var lexer = new Lexer(source, file);
-                var tokens = lexer.Tokenize();
-                var parser = new Parser(tokens);
-                files.Add(parser.Parse());
+                var res = await FileBuilder.Build(file);
+                if (!res.Success)
+                    throw new InvalidOperationException($"Failed to parse '{file}'");
+                files.Add(res.Value!);
             }
             catch (Exception ex)
             {

@@ -2,8 +2,8 @@ namespace VectraLang.ModuleLoader.Internals;
 
 internal sealed class VmodToml
 {
-    public ModuleToml Module { get; set; }
-    public SourcesToml Sources { get; set; }
+    public ModuleToml? Module { get; set; }
+    public SourcesToml? Sources { get; set; }
     public Dictionary<string, string> Dependencies { get; set; } = new();
 }
 
