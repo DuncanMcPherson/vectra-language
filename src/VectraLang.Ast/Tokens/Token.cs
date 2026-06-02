@@ -1,4 +1,6 @@
-﻿namespace VectraLang.Ast.Tokens;
+﻿using VectraLang.Core;
+
+namespace VectraLang.Ast.Tokens;
 
 public sealed record Token(
     TokenType Type,
