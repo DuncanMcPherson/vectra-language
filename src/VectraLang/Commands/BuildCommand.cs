@@ -1,5 +1,4 @@
 ﻿using System.ComponentModel;
-using JetBrains.Annotations;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using VectraLang.Ast;
@@ -7,14 +6,13 @@ using VectraLang.Core;
 
 namespace VectraLang.Commands;
 
-[UsedImplicitly]
 public class BuildCommand : AsyncCommand<BuildCommand.Settings>
 {
     public sealed class Settings : CommandSettings
     {
         [CommandArgument(0, "<file>")]
         [Description("The .vec, .vmod, or .vpkg file to build.")]
-        public string? File { get; [UsedImplicitly] init; }
+        public string? File { get; init; }
     }
 
     protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken ct)
