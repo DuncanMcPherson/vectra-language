@@ -1,6 +1,4 @@
-﻿enter Vectra.Core.Models;
-
-space HelloWorldExample;
+﻿space HelloWorldExample;
 
 public class Program {
     public void Main() {
