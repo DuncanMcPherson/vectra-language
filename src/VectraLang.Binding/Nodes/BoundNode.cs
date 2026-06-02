@@ -44,7 +44,7 @@ public sealed record BoundProperty(string Name, BoundType Type, PropertyDecl Sou
 
 public sealed record BoundParameter(string Name, BoundType Type, ParameterNode Source) : BoundNode;
 
-public sealed record BoundMethod(string Name, BoundType ReturnType, List<BoundParameter> Parameters, MethodDecl Source)
+public sealed record BoundMethod(string Name, BoundType ReturnType, List<BoundParameter> Parameters, BoundType ParentType, MethodDecl Source)
     : BoundCallable(Name, Parameters);
 
 public sealed record BoundMethodSignature(
@@ -53,5 +53,5 @@ public sealed record BoundMethodSignature(
     List<BoundParameter> Parameters,
     MethodSignatureDecl Source) : BoundNode;
 
-public sealed record BoundConstructor(string Name, List<BoundParameter> Parameters, ConstructorDecl Source)
+public sealed record BoundConstructor(string Name, List<BoundParameter> Parameters, BoundType ParentType, ConstructorDecl Source)
     : BoundCallable(Name, Parameters);

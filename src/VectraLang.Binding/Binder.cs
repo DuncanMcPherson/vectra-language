@@ -13,6 +13,15 @@ public class Binder
     private BoundType? _currentReturnType;
     private LocalScope _localScope = new();
 
+    public Binder()
+    {
+        foreach (var fn in BuiltInRegistry.GlobalFunctions)
+            _scope.RegisterGlobalFunction(fn);
+        
+        foreach (var method in BuiltInRegistry.ObjectMethods)
+            _scope.RegisterObjectMethod(method);
+    }
+
     public BindingResult Bind(VectraFile file)
     {
         // Register Spaces and Types
@@ -68,7 +77,10 @@ public class Binder
             };
 
             if (bound is not null)
+            {
+                _scope.RegisterBoundType(bound);
                 boundDecls.Add(bound);
+            }
         }
 
         var boundChildren = space.Children.Select(PassThree).ToList();
@@ -77,12 +89,13 @@ public class Binder
 
     private BoundClass BindClass(ClassDecl decl)
     {
+        var classType = new BoundUserDefinedType(decl.GetFullName(), decl);
         return new BoundClass(
             decl.GetFullName(),
             decl.Fields.Select(BindField).ToList(),
             decl.Properties.Select(BindProperty).ToList(),
-            decl.Methods.Select(BindMethod).ToList(),
-            decl.Constructors.Select(BindConstructor).ToList(),
+            decl.Methods.Select(m => BindMethod(m, classType)).ToList(),
+            decl.Constructors.Select(m => BindConstructor(m, classType)).ToList(),
             decl);
     }
 
@@ -96,10 +109,11 @@ public class Binder
 
     private BoundEnum BindEnum(EnumDecl decl)
     {
+        var enumType = new BoundUserDefinedType(decl.GetFullName(), decl);
         return new(
             decl.GetFullName(),
             decl.Fields.Select(BindField).ToList(),
-            decl.Methods.Select(BindMethod).ToList(),
+            decl.Methods.Select(m => BindMethod(m, enumType)).ToList(),
             decl);
     }
 
@@ -124,12 +138,13 @@ public class Binder
         return new(param.Name.Lexeme, ResolveTypeNode(param.Type), param);
     }
 
-    private BoundMethod BindMethod(MethodDecl decl)
+    private BoundMethod BindMethod(MethodDecl decl, BoundType classType)
     {
         var ret = new BoundMethod(
             decl.Name.Lexeme,
             ResolveTypeNode(decl.ReturnType),
             decl.Parameters.Select(BindParameter).ToList(),
+            classType,
             decl);
         _scope.RegisterPendingBody(ret, decl.Body);
         return ret;
@@ -142,11 +157,12 @@ public class Binder
             decl.Parameters.Select(BindParameter).ToList(),
             decl);
 
-    private BoundConstructor BindConstructor(ConstructorDecl decl)
+    private BoundConstructor BindConstructor(ConstructorDecl decl, BoundType classType)
     {
         var ret = new BoundConstructor(
             decl.Name.Lexeme,
             decl.Parameters.Select(BindParameter).ToList(),
+            classType,
             decl);
         _scope.RegisterPendingBody(ret, decl.Body);
         return ret;
@@ -158,8 +174,8 @@ public class Binder
         {
             BoundCallableBody? resolved = callable switch
             {
-                BoundMethod m => new BoundMethodBody(BindBodyStatement(stmt, m.ReturnType), m.Source),
-                BoundConstructor c => new BoundConstructorBody(BindBodyStatement(stmt), c.Source),
+                BoundMethod m => new BoundMethodBody(BindBodyStatement(stmt, callable.Parameters, m.ParentType, m.ReturnType), m.Source),
+                BoundConstructor c => new BoundConstructorBody(BindBodyStatement(stmt, callable.Parameters, c.ParentType), c.Source),
                 _ => null
             };
             
@@ -168,7 +184,7 @@ public class Binder
         }
     }
 
-    private List<BoundStmt> BindBodyStatement(BlockStmt stmt, BoundType? returnType = null)
+    private List<BoundStmt> BindBodyStatement(BlockStmt stmt, List<BoundParameter> parameters, BoundType parentType, BoundType? returnType = null)
     {
         if (returnType is not null)
             _currentReturnType = returnType;
@@ -177,6 +193,11 @@ public class Binder
         _localScope = _localScope.CreateChildScope();
         try
         {
+            _localScope.TryDeclare("this", parentType);
+            foreach (var p in parameters.Where(p => !_localScope.TryDeclare(p.Name, p.Type)))
+            {
+                _errors.Add(CreateError($"Variable with name '{p.Name}' already declared in this scope.", p.Source.Location));
+            }
             var ret = new List<BoundStmt>();
             foreach (var s in stmt.Statements)
                 ret.Add(BindStatement(s));
@@ -229,7 +250,8 @@ public class Binder
     {
         var boundType = ResolveTypeNode(decl.Type);
         var initializer = decl.Initializer is not null ? BindExpr(decl.Initializer) : null;
-        // TODO: should we swap the bound type if the initializer is not null?
+        if (boundType is BoundInferredType && initializer is not null)
+            boundType = initializer.Type;
         if (!_localScope.TryDeclare(decl.Name.Lexeme, boundType))
             _errors.Add(CreateError($"Variable with name '{decl.Name.Lexeme}' already declared in this scope.", decl.Location));
         
@@ -306,6 +328,10 @@ public class Binder
     {
         if (_localScope.TryResolve(e.Name.Lexeme, out var type) && type is not null)
             return new BoundVariableExpr(e.Name.Lexeme, type);
+
+        if (_scope.TryResolveGlobalFunction(e.Name.Lexeme, out var fn) && fn is not null)
+            return new BoundVariableExpr(e.Name.Lexeme, fn.ReturnType);
+        
         _errors.Add(CreateError($"Unresolved variable: '{e.Name.Lexeme}'.", e.Location));
         return new BoundVariableExpr(e.Name.Lexeme, new BoundErrorType(e.Name.Lexeme));
     }
@@ -335,20 +361,24 @@ public class Binder
     {
         var callee = BindExpr(e.Callee);
         var args = e.Arguments.Select(BindExpr).ToList();
-        return new BoundCallExpr(callee, args, new BoundInferredType());
+        return new BoundCallExpr(callee, args, callee.Type);
     }
 
     private BoundGetExpr BindGet(GetExpr e)
     {
         var obj = BindExpr(e.Object);
-        return new BoundGetExpr(obj, e.Name.Lexeme, new BoundInferredType());
+        if (_scope.TryResolveMember(obj.Type, e.Name.Lexeme, out var memberType) && memberType is not null)
+            return new BoundGetExpr(obj, e.Name.Lexeme, memberType);
+        
+        _errors.Add(CreateError($"'{e.Name.Lexeme}' is not a member of '{obj.Type}'", e.Location));
+        return new BoundGetExpr(obj, e.Name.Lexeme, new BoundErrorType(e.Name.Lexeme));
     }
 
     private BoundNewExpr BindNew(NewExpr e)
     {
         var targetType = ResolveUserType(e.TypeName.Lexeme, e.Location);
         var args = e.Arguments.Select(BindExpr).ToList();
-        return new BoundNewExpr(targetType, args, new BoundInferredType());
+        return new BoundNewExpr(targetType, args, targetType);
     }
 
     private BoundType ResolveTypeNode(TypeNode typeNode) => typeNode switch
