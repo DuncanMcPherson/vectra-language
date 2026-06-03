@@ -1,4 +1,5 @@
 ﻿using VectraLang.Ast.Tokens;
+using VectraLang.Core;
 
 namespace VectraLang.Ast.AstNodes;
 

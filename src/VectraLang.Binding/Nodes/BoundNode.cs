@@ -47,6 +47,18 @@ public sealed record BoundParameter(string Name, BoundType Type, ParameterNode S
 public sealed record BoundMethod(string Name, BoundType ReturnType, List<BoundParameter> Parameters, BoundType ParentType, MethodDecl Source)
     : BoundCallable(Name, Parameters);
 
+public sealed record BoundPropertyGetter(
+    string Name,
+    BoundType ReturnType,
+    BoundType ParentType,
+    PropertyDecl Source) : BoundCallable(Name, []);
+
+public sealed record BoundPropertySetter(
+    string Name,
+    BoundType ReturnType,
+    BoundType ParentType,
+    PropertyDecl Source) : BoundCallable(Name, [new("value", ParentType, null!)]);
+
 public sealed record BoundMethodSignature(
     string Name,
     BoundType ReturnType,

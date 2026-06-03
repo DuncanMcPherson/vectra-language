@@ -6,14 +6,13 @@
 
 Vectra is a statically-typed, object-oriented programming language with a clean, C#-inspired syntax. It is implemented as a tree-walk interpreter written in C# targeting .NET 10.
 
-> **Status:** Work in progress. Package and module loading are functional, and the interpreter is able to correctly select entry points.
+> **Status:** Work in progress. Binding available for single files. Working on Logging next
 
 ---
 
 ## Table of Contents
 
 - [Features](#features)
-- [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
 - [Language Reference](#language-reference)
   - [Namespaces and Imports](#namespaces-and-imports)
@@ -27,7 +26,6 @@ Vectra is a statically-typed, object-oriented programming language with a clean,
   - [Operators](#operators)
   - [Built-in Functions](#built-in-functions)
 - [Examples](#examples)
-- [Architecture](#architecture)
 - [Building](#building)
 - [Running a Vectra File](#running-a-vectra-file)
 
@@ -48,48 +46,6 @@ Vectra is a statically-typed, object-oriented programming language with a clean,
 
 ---
 
-## Project Structure
-
-```
-vectra-language/
-├── src/
-│   ├── VectraLang/                    # CLI entry point
-│   │   ├── Program.cs
-│   │   └── Formatters/
-│   │       └── AstPrinter.cs         # Debug AST pretty-printer
-│   ├── VectraLang.Ast/               # Lexer, parser, and AST node definitions
-│   │   ├── Lexer.cs
-│   │   ├── Parser.cs
-│   │   ├── AstNodes/
-│   │   │   ├── Node.cs               # Base node types (Expr, Stmt, Node)
-│   │   │   ├── Types.cs              # Type nodes
-│   │   │   ├── Declarations.cs       # Class, interface, enum, method, field nodes
-│   │   │   ├── Statements.cs         # Statement nodes
-│   │   │   ├── Expressions.cs        # Expression nodes
-│   │   │   └── Literals.cs           # Literal value nodes
-│   │   └── Tokens/
-│   │       ├── Token.cs
-│   │       ├── TokenType.cs
-│   │       ├── TokenExtensions.cs
-│   │       └── TokenLocation.cs
-│   └── VectraLang.Interpreter/       # Tree-walk interpreter
-│       ├── Interpreter.cs
-│       ├── RuntimeValue.cs           # Runtime value types
-│       ├── VectraEnvironment.cs      # Lexical scope management
-│       ├── ObjectMethodsRegistry.cs  # Built-in object methods
-│       ├── RuntimeException.cs
-│       └── ReturnException.cs
-├── examples/
-│   ├── SingleFileExamples/
-│   │   ├── HelloWorldExample.vec
-│   │   └── PropertyAccessExample.vec
-│   └── EnumTests/
-│       └── EnumNoParameters.vec
-└── VectraLang.slnx
-```
-
----
-
 ## Getting Started
 
 ### Prerequisites
@@ -107,13 +63,13 @@ dotnet build
 ### Running a Vectra File
 
 ```bash
-dotnet run --project src/VectraLang/VectraLang.csproj -- <path-to-file.vec>
+dotnet run --project src/VectraLang/VectraLang.csproj -- run <path-to-file.vec>
 ```
 
 **Example:**
 
 ```bash
-dotnet run --project src/VectraLang/VectraLang.csproj -- examples/SingleFileExamples/HelloWorldExample.vec
+dotnet run --project src/VectraLang/VectraLang.csproj -- run examples/SingleFileExamples/HelloWorldExample.vec
 ```
 
 ---
@@ -300,13 +256,13 @@ public int Add(int a, int b) {
 
 ### Operators
 
-| Category    | Operators                              |
-|-------------|----------------------------------------|
-| Arithmetic  | `+`, `-`, `*`, `/`, `%`               |
-| Comparison  | `==`, `!=`, `<`, `<=`, `>`, `>=`      |
-| Logical     | `&&`, `\|\|`, `!`                      |
-| Assignment  | `=`                                    |
-| Member      | `.` (access), `?.` (optional chaining) |
+| Category   | Operators                              |
+|------------|----------------------------------------|
+| Arithmetic | `+`, `-`, `*`, `/`, `%`                |
+| Comparison | `==`, `!=`, `<`, `<=`, `>`, `>=`       |
+| Logical    | `&&`, `\|\|`, `!`                      |
+| Assignment | `=`                                    |
+| Member     | `.` (access), `?.` (optional chaining) |
 
 ### Optional Chaining
 
@@ -326,11 +282,11 @@ Destructure an object's fields into local variables:
 
 ### Built-in Functions
 
-| Function          | Description                           |
-|-------------------|---------------------------------------|
+| Function           | Description                          |
+|--------------------|--------------------------------------|
 | `PrintLine(value)` | Prints a value followed by a newline |
-| `Print(value)`    | Prints a value without a newline      |
-| `ReadLine()`      | Reads a line from standard input      |
+| `Print(value)`     | Prints a value without a newline     |
+| `ReadLine()`       | Reads a line from standard input     |
 
 ### Built-in Object Methods
 
@@ -432,29 +388,6 @@ enum Priority {
 ```
 
 ---
-
-## Architecture
-
-Vectra is implemented as a classic three-phase pipeline:
-
-```
-Source Text
-    │
-    ▼
-┌─────────┐
-│  Lexer  │  Converts source text into a flat list of tokens
-└─────────┘
-    │
-    ▼
-┌─────────┐
-│ Parser  │  Builds an Abstract Syntax Tree (AST) using recursive descent
-└─────────┘
-    │
-    ▼
-┌─────────────┐
-│ Interpreter │  Walks the AST and executes the program
-└─────────────┘
-```
 
 ### Key Design Decisions
 

@@ -1,4 +1,4 @@
-﻿namespace VectraLang.Ast.Tokens;
+﻿namespace VectraLang.Core;
 
 public sealed record TokenLocation(
     string FileName,

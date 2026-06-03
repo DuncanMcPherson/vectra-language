@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Spectre.Console;
 using Spectre.Console.Cli;
 using VectraLang.Ast;
+using VectraLang.Core.Diagnostics;
 using VectraLang.Formatters;
 using VectraLang.ModuleLoader;
 
@@ -21,6 +22,10 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
         [CommandOption("--ast")]
         [Description("Print the AST before running.")]
         public bool PrintAst { get; init; }
+        
+        [CommandOption("-v|--verbose")]
+        [Description("Enable verbose logging.")]
+        public bool Verbose { get; init; }
     }
 
     protected override async Task<int> ExecuteAsync(CommandContext context, Settings settings,
@@ -33,22 +38,23 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
         }
 
         var extension = Path.GetExtension(settings.File).ToLowerInvariant();
+        var logger = new SpectreLogger(settings.Verbose ? DiagnosticSeverity.Debug : DiagnosticSeverity.Info);
 
         return extension switch
         {
-            ".vec" => await RunSingleFile(settings, ct),
-            ".vmod" => await RunModule(settings),
-            ".vpkg" => await RunPackage(settings),
+            ".vec" => await RunSingleFile(settings, logger, ct),
+            ".vmod" => await RunModule(settings, logger),
+            ".vpkg" => await RunPackage(settings, logger),
             _ => UnknownExtension(settings.File)
         };
     }
 
-    private static async Task<int> RunSingleFile(Settings settings, CancellationToken ct = default)
+    private static async Task<int> RunSingleFile(Settings settings, IVectraLogger logger, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(settings.File);
         try
         {
-            var res = await FileBuilder.Build(settings.File, ct);
+            var res = await FileBuilder.Build(settings.File, logger, ct);
             if (!res.Success)
                 return 1;
             var program = res.Value!;
@@ -70,7 +76,7 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
         }
     }
 
-    private static async Task<int> RunModule(Settings settings)
+    private static async Task<int> RunModule(Settings settings, IVectraLogger logger)
     {
         var result = await Loader.Load(settings.File!);
         foreach (var warning in result.Warnings)
@@ -88,7 +94,7 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
 
         try
         {
-            var mergedModule = await ModuleBuilder.Build(module);
+            var mergedModule = await ModuleBuilder.Build(module, logger);
             var interpreter = new Interpreter.Interpreter();
             interpreter.Interpret(mergedModule);
             return 0;
@@ -100,7 +106,7 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
         }
     }
 
-    private static async Task<int> RunPackage(Settings settings)
+    private static async Task<int> RunPackage(Settings settings, IVectraLogger logger)
     {
         var packageResult = await Loader.LoadPackage(settings.File!);
         if (!packageResult.IsSuccess)
@@ -114,7 +120,7 @@ public class RunCommand : AsyncCommand<RunCommand.Settings>
 
         foreach (var warning in packageResult.Warnings)
             AnsiConsole.MarkupLine($"[yellow]Warning:[/] {warning}");
-        var mergedPackage = await PackageBuilder.Build(package);
+        var mergedPackage = await PackageBuilder.Build(package, logger);
         var interpreter = new Interpreter.Interpreter();
         interpreter.Interpret(mergedPackage);
         return 0;
