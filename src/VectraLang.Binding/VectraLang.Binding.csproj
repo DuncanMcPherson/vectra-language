@@ -9,6 +9,7 @@
     <ItemGroup>
       <ProjectReference Include="..\VectraLang.Core\VectraLang.Core.csproj" />
         <ProjectReference Include="..\VectraLang.Ast\VectraLang.Ast.csproj" />
+        <ProjectReference Include="..\VectraLang.ModuleLoader\VectraLang.ModuleLoader.csproj" />
     </ItemGroup>
 
 </Project>

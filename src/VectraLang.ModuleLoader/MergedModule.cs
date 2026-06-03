@@ -6,4 +6,5 @@ public record MergedModule(
     string ModuleName,
     List<SpaceDecl> SpaceDecls,
     List<ITopLevelDecl> AllDeclarations,
-    bool IsExecutable);
+    bool IsExecutable,
+    List<EnterDecl> EnterDeclarations);

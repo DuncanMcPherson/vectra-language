@@ -3,6 +3,7 @@ using VectraLang.Binding;
 using VectraLang.Binding.Nodes;
 using VectraLang.Binding.Scope;
 using VectraLang.Core.Diagnostics;
+using VectraLang.ModuleLoader;
 
 namespace VectraLang.Core;
 
@@ -24,6 +25,26 @@ public class Binder
         foreach (var method in BuiltInRegistry.ObjectMethods)
             _scope.RegisterObjectMethod(method);
         _logger.Debug("Bind:0", "Registered built-in object methods.");
+    }
+
+    public BindingResult Bind(MergedModule module)
+    {
+        foreach (var space in module.SpaceDecls)
+        {
+            PassOne(space);
+        }
+        
+        // TODO: Preserve enter declarations from each file for cross-module binding
+        // Currently discarded during the merge
+        var resolvedImports = PassTwo(module.EnterDeclarations);
+        
+        var boundSpaces = module.SpaceDecls.Select(PassThree).ToList();
+        
+        PassFour();
+        
+        var boundModule = new BoundModule(module.ModuleName, boundSpaces, module.IsExecutable, resolvedImports);
+        
+        return new BindingResult(boundModule, _scope, _errors);
     }
 
     public BindingResult Bind(VectraFile file)
