@@ -214,12 +214,21 @@ public class Binder
             {
                 BoundMethod m => new BoundMethodBody(BindBodyStatement(stmt, callable.Parameters, m.ParentType, m.ReturnType), m.Source),
                 BoundConstructor c => new BoundConstructorBody(BindBodyStatement(stmt, callable.Parameters, c.ParentType), c.Source),
-                _ => null
+                BoundPropertyGetter g => new BoundPropertyGetterBody(BindBodyStatement(stmt, callable.Parameters, g.ParentType, g.ReturnType), g.Source),
+                BoundPropertySetter s => new BoundPropertySetterBody(BindBodyStatement(stmt, callable.Parameters, s.ParentType), s.Source),
+                _ => HandleUnknown(callable)
             };
             
             if (resolved is not null)
                 _scope.RegisterResolvedBody(callable, resolved);
         }
+    }
+
+    private BoundCallableBody? HandleUnknown(BoundCallable callable)
+    {
+        var callableType = callable.GetType().Name;
+        _logger.Error("Bind:4", $"Unknown callable type '{callableType}'");
+        return null;
     }
 
     private List<BoundStmt> BindBodyStatement(BlockStmt stmt, List<BoundParameter> parameters, BoundType parentType, BoundType? returnType = null)

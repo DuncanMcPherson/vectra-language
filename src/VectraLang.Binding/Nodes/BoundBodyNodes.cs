@@ -13,6 +13,14 @@ public sealed record BoundConstructorBody(
     List<BoundStmt> Statements,
     ConstructorDecl Source) : BoundCallableBody;
 
+public sealed record BoundPropertyGetterBody(
+    List<BoundStmt> Statements,
+    PropertyDecl Source) : BoundCallableBody;
+
+public sealed record BoundPropertySetterBody(
+    List<BoundStmt> Statements,
+    PropertyDecl Source) : BoundCallableBody;
+
 public abstract record BoundStmt : BoundNode;
 
 public sealed record BoundBlockStmt(List<BoundStmt> Statements) : BoundStmt;

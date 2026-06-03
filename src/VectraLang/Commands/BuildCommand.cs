@@ -57,10 +57,12 @@ public class BuildCommand : AsyncCommand<BuildCommand.Settings>
                 logger.Error("Parse", $"Failed to build '{settings.File}'");
                 return 1;
             }
+            logger.Info("Parse", $"Successfully parsed '{settings.File}'");
 
             var file = res.Value!;
             var binder = new Binder(logger);
             var program = binder.Bind(file);
+            logger.Info("Bind", "Binding complete.");
             if (!program.IsSuccess)
             {
                 foreach (var error in program.Errors)

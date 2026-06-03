@@ -11,7 +11,7 @@ public class SpectreLogger(DiagnosticSeverity minimumSeverity = DiagnosticSeveri
         var (color, label) = evt.Severity switch
         {
             DiagnosticSeverity.Debug => ("grey", "DBG"),
-            DiagnosticSeverity.Info => ("white", "INF"),
+            DiagnosticSeverity.Info => ("blue", "INF"),
             DiagnosticSeverity.Warning => ("yellow", "WRN"),
             DiagnosticSeverity.Error => ("red", "ERR"),
             _ => ("white", "???")
