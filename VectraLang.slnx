@@ -13,6 +13,7 @@
     <File Path="examples\ModuleExamples\MultiFiles\MultiFiles.vmod" />
   </Folder>
   <Folder Name="/examples/ModuleExamples/MultiFiles/src/">
+    <File Path="examples/ModuleExamples/MultiFiles/src/Game.vec" />
     <File Path="examples\ModuleExamples\MultiFiles\src\Person.vec" />
   </Folder>
   <Folder Name="/examples/ModuleExamples/SimpleHello/">

@@ -1,0 +1,6 @@
+﻿space MultiFiles;
+
+class Game {
+    public void Start() {
+    }
+}

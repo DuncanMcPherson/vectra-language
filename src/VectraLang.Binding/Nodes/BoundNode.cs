@@ -8,6 +8,12 @@ public sealed record BoundFile(
     BoundSpace Space,
     List<string> ResolvedImports) : BoundNode;
 
+public sealed record BoundModule(
+    string Name,
+    List<BoundSpace> Spaces,
+    bool IsExecutable,
+    List<string> ResolvedImports) : BoundNode;
+
 public sealed record BoundSpace(
     string QualifiedName,
     List<BoundTypeDecl> Declarations,
