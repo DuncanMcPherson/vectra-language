@@ -9,26 +9,49 @@ namespace VectraLang.Core;
 
 public class Binder
 {
-    private readonly BindingScope _scope = new();
+    private readonly BindingScope _scope;
     private readonly List<string> _errors = [];
     private readonly IVectraLogger _logger;
     private BoundType? _currentReturnType;
     private LocalScope _localScope = new();
 
-    public Binder(IVectraLogger logger)
+    public Binder(IVectraLogger logger, BindingScope? scope = null)
     {
         _logger = logger;
+        _scope = scope ?? new BindingScope();
+    }
+
+    public BindingResult Bind(MergedPackage package)
+    {
+        var sharedScope = new BindingScope();
         foreach (var fn in BuiltInRegistry.GlobalFunctions)
-            _scope.RegisterGlobalFunction(fn);
-        _logger.Debug("Bind:0", "Registered built-in functions.");
+            sharedScope.RegisterGlobalFunction(fn);
+        foreach (var m in BuiltInRegistry.ObjectMethods)
+            sharedScope.RegisterObjectMethod(m);
+
+        var boundModules = new List<BoundModule>(package.Modules.Count);
+        var allErrors = new List<string>();
+
+        foreach (var result in from module in package.Modules let binder = new Binder(_logger, sharedScope) select binder.Bind(module))
+        {
+            allErrors.AddRange(result.Errors);
+            if (result.BoundRoot is BoundModule bm)
+                boundModules.Add(bm);
+        }
         
-        foreach (var method in BuiltInRegistry.ObjectMethods)
-            _scope.RegisterObjectMethod(method);
-        _logger.Debug("Bind:0", "Registered built-in object methods.");
+        var boundPackage = new BoundPackage(package.PackageName, package.Version, boundModules);
+        return new BindingResult(boundPackage, sharedScope, allErrors);
     }
 
     public BindingResult Bind(MergedModule module)
     {
+        if (module.SpaceDecls.Count == 0)
+        {
+            _logger.Warning("Bind", $"Module '{module.ModuleName}' has no spaces. Skipping.");
+            var bound = new BoundModule(module.ModuleName, [], module.IsExecutable, []);
+            return new BindingResult(bound, _scope, _errors);
+        }
+        
         foreach (var space in module.SpaceDecls)
         {
             PassOne(space);
@@ -67,7 +90,7 @@ public class Binder
         // TODO: evaluate.
         // in the future, we will have multiple files and will need to allow multiple files in the same space
         _logger.Debug("Bind:1", $"Registering space '{space.Name.Lexeme}'");
-        if (!_scope.TryRegisterSpace(space))
+        if (!_scope.TryRegisterSpace(space, out var alreadyExists) && !alreadyExists)
             _logger.Error("Bind:1", $"Space '{space.Name.Lexeme}' already declared.", space.Name.Location);
         foreach (var decl in space.Declarations.Where(decl => !_scope.TryRegisterType(decl)))
             _logger.Error("Bind:1", $"Type '{decl.Name.Lexeme}' already declared.", decl.Name.Location);
@@ -78,7 +101,7 @@ public class Binder
 
     private List<string> PassTwo(List<EnterDecl> enters)
     {
-        var resolved = new List<string>();
+        var resolved = new List<string>(enters.Count);
         foreach (var enter in enters)
         {
             _logger.Debug("Bind:2", $"Resolving enter '{enter.QualifiedName}'");
@@ -95,7 +118,7 @@ public class Binder
 
     private BoundSpace PassThree(SpaceDecl space)
     {
-        var boundDecls = new List<BoundTypeDecl>();
+        var boundDecls = new List<BoundTypeDecl>(space.Declarations.Count);
         foreach (var decl in space.Declarations)
         {
             _logger.Debug("Bind:3", $"Binding type '{decl.Name.Lexeme}'");
@@ -228,15 +251,17 @@ public class Binder
     private void PassFour()
     {
         _logger.Debug("Bind:4", "Resolving bodies.");
-        foreach (var (callable, stmt) in _scope.GetPendingBodies())
+        while (_scope.GetPendingBodiesCount() > 0)
         {
+            var (callable, stmt) = _scope.DequeuePendingBody();
             _logger.Debug("Bind:4", $"Resolving body for '{callable.Name}'");
+            
             BoundCallableBody? resolved = callable switch
             {
-                BoundMethod m => new BoundMethodBody(BindBodyStatement(stmt, callable.Parameters, m.ParentType, m.ReturnType), m.Source),
-                BoundConstructor c => new BoundConstructorBody(BindBodyStatement(stmt, callable.Parameters, c.ParentType), c.Source),
-                BoundPropertyGetter g => new BoundPropertyGetterBody(BindBodyStatement(stmt, callable.Parameters, g.ParentType, g.ReturnType), g.Source),
-                BoundPropertySetter s => new BoundPropertySetterBody(BindBodyStatement(stmt, callable.Parameters, s.ParentType), s.Source),
+                BoundMethod m => new BoundMethodBody(BindBodyStatement(stmt, m.Parameters, m.ParentType, m.ReturnType), m.Source),
+                BoundConstructor c => new BoundConstructorBody(BindBodyStatement(stmt, c.Parameters, c.ParentType), c.Source),
+                BoundPropertyGetter g => new BoundPropertyGetterBody(BindBodyStatement(stmt, g.Parameters, g.ParentType, g.ReturnType), g.Source),
+                BoundPropertySetter s => new BoundPropertySetterBody(BindBodyStatement(stmt, s.Parameters, s.ParentType), s.Source),
                 _ => HandleUnknown(callable)
             };
             
@@ -266,7 +291,7 @@ public class Binder
             {
                 _logger.Error("Bind:4", $"Variable with name '{p.Name}' already declared in this scope.", p.Source.Location);
             }
-            var ret = new List<BoundStmt>();
+            var ret = new List<BoundStmt>(stmt.Statements.Count);
             foreach (var s in stmt.Statements)
                 ret.Add(BindStatement(s));
 

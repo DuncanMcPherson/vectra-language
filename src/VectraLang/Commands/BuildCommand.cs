@@ -36,7 +36,7 @@ public class BuildCommand : AsyncCommand<BuildCommand.Settings>
         {
             ".vec" => await BuildSingleFile(settings, logger, ct),
             ".vmod" => await BuildModule(settings, logger, ct),
-            // ".vpkg" => await BuildPackage(settings),
+            ".vpkg" => await BuildPackage(settings, logger, ct),
             _ => UnknownExtension(settings.File)
         };
     }
@@ -111,6 +111,40 @@ public class BuildCommand : AsyncCommand<BuildCommand.Settings>
             logger.Info("Parse", $"Successfully parsed '{module.Name}'");
             var binder = new Binder(logger);
             var program = binder.Bind(mergedModule);
+            logger.Info("Bind", "Binding complete.");
+            return program.IsSuccess ? 0 : 1;
+        }
+        catch (Exception e)
+        {
+            logger.Error("Build", e.Message);
+            return 1;
+        }
+    }
+
+    private static async Task<int> BuildPackage(Settings settings, IVectraLogger logger, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(settings.File);
+        try
+        {
+            var loadResult = await Loader.LoadPackage(settings.File);
+            foreach (var warning in loadResult.Warnings)
+            {
+                logger.Warning("Load", warning);
+            }
+
+            if (!loadResult.IsSuccess)
+            {
+                foreach (var error in loadResult.Errors)
+                    logger.Error("Load", error);
+                return 1;
+            }
+
+            var package = loadResult.Package!;
+            logger.Info("Load", $"Successfully loaded '{package.Name}'");
+            var mergedPackage = await PackageBuilder.Build(package, logger, ct);
+            logger.Info("Build", $"Successfully built '{package.Name}'");
+            var binder = new Binder(logger);
+            var program = binder.Bind(mergedPackage);
             logger.Info("Bind", "Binding complete.");
             return program.IsSuccess ? 0 : 1;
         }
