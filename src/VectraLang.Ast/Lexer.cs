@@ -1,5 +1,6 @@
 ﻿using VectraLang.Ast.Tokens;
 using VectraLang.Core;
+using VectraLang.Core.Diagnostics;
 
 // ReSharper disable ConvertToPrimaryConstructor
 
@@ -10,6 +11,7 @@ public sealed class Lexer
     private readonly string _source;
     private readonly string _fileName;
     private readonly List<Token> _tokens = [];
+    private readonly IVectraLogger _logger;
 
     private int _start;
     private int _current;
@@ -62,10 +64,11 @@ public sealed class Lexer
         { "null", TokenType.Null },
     };
 
-    public Lexer(string source, string fileName)
+    public Lexer(string source, string fileName, IVectraLogger logger)
     {
         _source = source;
         _fileName = fileName;
+        _logger = logger;
     }
 
     public IReadOnlyList<Token> Tokenize()
@@ -243,6 +246,10 @@ public sealed class Lexer
 
     private void AddToken(TokenType type, Object? literal = null)
     {
+        if (type == TokenType.Error)
+        {
+            _logger.Error("Lex", $"Unexpected character '{_source[_current]}'.", new TokenLocation(_fileName, _startLine, _startColumn, _currentLine, _currentColumn));
+        }
         var lexeme = _source[_start.._current];
         _tokens.Add(MakeToken(type, lexeme, literal));
     }

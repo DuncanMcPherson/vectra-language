@@ -1,5 +1,4 @@
-﻿using Spectre.Console;
-using VectraLang.Ast.AstNodes;
+﻿using VectraLang.Ast.AstNodes;
 using VectraLang.Core;
 using VectraLang.Core.Diagnostics;
 
@@ -17,7 +16,7 @@ public static class FileBuilder
                 return new Result<VectraFile>(false, null);
             }
             var source = await File.ReadAllTextAsync(sourceFile, ct);
-            var lexer = new Lexer(source, sourceFile);
+            var lexer = new Lexer(source, sourceFile, logger);
             var tokens = lexer.Tokenize();
             logger.Debug("Parse", $"Lexing complete. {tokens.Count} tokens found.");
             var parser = new Parser(tokens, logger);
