@@ -7,7 +7,7 @@ public class BindingScope
 {
     private readonly Dictionary<string, ITopLevelDecl> _types = new();
     private readonly Dictionary<string, SpaceDecl> _spaces = new();
-    private readonly Dictionary<BoundCallable, BlockStmt> _pendingBodies = new();
+    private readonly Queue<KeyValuePair<BoundCallable, BlockStmt>> _pendingBodies = new();
     private readonly Dictionary<BoundCallable, BoundCallableBody> _resolvedBodies = new();
     private readonly Dictionary<string, BoundBuiltInFunction> _globalFunctions = new();
     private readonly List<BoundBuiltInMethod> _objectMethods = new();
@@ -25,7 +25,7 @@ public class BindingScope
     public IEnumerable<BoundBuiltInMethod> GetObjectMethods() => _objectMethods;
 
     public void RegisterPendingBody(BoundCallable callable, BlockStmt body)
-        => _pendingBodies[callable] = body;
+        => _pendingBodies.Enqueue(new KeyValuePair<BoundCallable, BlockStmt>(callable, body));
 
     public void RegisterResolvedBody(BoundCallable callable, BoundCallableBody body)
         => _resolvedBodies[callable] = body;
@@ -33,7 +33,9 @@ public class BindingScope
     public bool TryGetResolvedBody(BoundCallable callable, out BoundCallableBody? body)
         => _resolvedBodies.TryGetValue(callable, out body);
 
-    public IEnumerable<KeyValuePair<BoundCallable, BlockStmt>> GetPendingBodies() => _pendingBodies;
+    public int GetPendingBodiesCount() => _pendingBodies.Count;
+    
+    public KeyValuePair<BoundCallable, BlockStmt> DequeuePendingBody() => _pendingBodies.Dequeue();
 
     public bool TryRegisterType(ITopLevelDecl decl)
     {
@@ -102,10 +104,16 @@ public class BindingScope
         return method?.ReturnType;
     }
 
-    public bool TryRegisterSpace(SpaceDecl space)
+    public bool TryRegisterSpace(SpaceDecl space, out bool alreadyExists)
     {
-        var fullName = space.QualifiedName;
-        return _spaces.TryAdd(fullName, space);
+        if (_spaces.ContainsKey(space.QualifiedName))
+        {
+            alreadyExists = true;
+            return false;
+        }
+
+        alreadyExists = false;
+        return _spaces.TryAdd(space.QualifiedName, space);       
     }
 
     public bool TryResolveType(string qualifiedName, out ITopLevelDecl? decl)

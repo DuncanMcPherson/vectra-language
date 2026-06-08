@@ -5,13 +5,13 @@ namespace VectraLang.ModuleLoader;
 
 public static class PackageBuilder
 {
-    public static async Task<MergedPackage> Build(VectraPackage package, IVectraLogger logger)
+    public static async Task<MergedPackage> Build(VectraPackage package, IVectraLogger logger, CancellationToken ct = default)
     {
         var sorted = ModuleSorter.TopoSort(package.Modules);
         var mergedModules = new List<MergedModule>();
         foreach (var module in sorted)
         {
-            mergedModules.Add(await ModuleBuilder.Build(module, logger));
+            mergedModules.Add(await ModuleBuilder.Build(module, logger, ct));
         }
         return new MergedPackage(package.Name, package.Version, mergedModules);
     }
