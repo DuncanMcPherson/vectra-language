@@ -35,7 +35,11 @@ public sealed class Parser
     private SpaceDecl ParseSpaceDecl()
     {
         if (!Match(TokenType.Space))
-            throw new ParseException("Expected space declaration.", CurrentLocation());
+        {
+            var eLocation = CurrentLocation();
+            _logger.Error("Parse", "Expected space declaration.", eLocation);
+            return new SpaceDecl(ErrorToken("Expected space declaration.", eLocation), null, [], [], eLocation);
+        }
 
         var location = Previous().Location;
         SpaceDecl? space = null;
@@ -54,6 +58,8 @@ public sealed class Parser
         while (!IsAtEnd())
         {
             var decl = ParseDeclaration();
+            if (decl is null)
+                continue;
             space.AddDeclaration(decl);
             decl.ParentSpace = space;
         }
@@ -100,13 +106,18 @@ public sealed class Parser
         return modifiers;
     }
 
-    private ITopLevelDecl ParseDeclaration()
+    private ITopLevelDecl? ParseDeclaration()
     {
         var modifiers = ParseModifiers();
         if (!Match(TokenType.Class, TokenType.Interface, TokenType.Enum))
-            throw new ParseException("Expected class, interface or enum declaration.", CurrentLocation());
+        {
+            _logger.Error("Parse", "Expected class, interface, or enum declaration.", CurrentLocation());
+            SynchronizeDeclaration();
+            return null;
+        }
         var type = Previous();
-        _logger.Debug("Parse", $"Parsing {type.Lexeme} declaration with modifiers: {string.Join(", ", modifiers.Select(m => m.Lexeme))}");
+        _logger.Debug("Parse",
+            $"Parsing {type.Lexeme} declaration with modifiers: {string.Join(", ", modifiers.Select(m => m.Lexeme))}");
         return type.Type switch
         {
             TokenType.Class => ParseClassDeclaration(modifiers),
@@ -140,8 +151,8 @@ public sealed class Parser
             {
                 case InferredTypeNode:
                     _logger.Error("Parse", "Cannot infer type for class member.", Previous().Location);
-                    // TODO: recover rather than throw
-                    throw new ParseException("Cannot infer type for class member.", Previous().Location);
+                    SynchronizeMember();
+                    break;
                 case PrimitiveTypeNode primitive:
                 {
                     if (primitive.TypeToken.Lexeme == cls.Name.Lexeme && Peek().Type == TokenType.LeftParen)
@@ -214,7 +225,8 @@ public sealed class Parser
         }
 
         Consume(TokenType.RightParen, "Expected ')' after parameters.");
-        _logger.Debug("Parse", $"Parsed constructor parameters: {string.Join(", ", parameters.Select(p => p.Name.Lexeme))}");
+        _logger.Debug("Parse",
+            $"Parsed constructor parameters: {string.Join(", ", parameters.Select(p => p.Name.Lexeme))}");
         if (Peek().Lexeme == ":")
         {
             // consume the colon
@@ -272,9 +284,10 @@ public sealed class Parser
                 if (getter != null)
                 {
                     _logger.Error("Parse", "Cannot have multiple getters in a property.", Previous().Location);
-                    // TODO: recover rather than throw
-                    throw new ParseException("Cannot have multiple getters in a property.", Previous().Location);
+                    SynchronizeMember();
+                    continue;
                 }
+
                 _logger.Debug("Parse", $"Parsing getter for property '{nameToken.Lexeme}'.");
                 getter = ParseBlock();
             }
@@ -285,8 +298,8 @@ public sealed class Parser
                 if (setter != null)
                 {
                     _logger.Error("Parse", "Cannot have multiple setters in a property.", Previous().Location);
-                    // TODO: recover rather than throw
-                    throw new ParseException("Cannot have multiple setters in a property.", Previous().Location);
+                    SynchronizeMember();
+                    continue;
                 }
 
                 _logger.Debug("Parse", $"Parsing setter for property '{nameToken.Lexeme}'.");
@@ -326,8 +339,9 @@ public sealed class Parser
 
             Consume(TokenType.RightParen, "Expected ')' after parameter list.");
             Consume(TokenType.Semicolon, "Expected ';' after method declaration.");
-            
-            _logger.Debug("Parse", $"Parsed method signature '{methodName.Lexeme}' with {parameters.Count} parameters.");
+
+            _logger.Debug("Parse",
+                $"Parsed method signature '{methodName.Lexeme}' with {parameters.Count} parameters.");
             methods.Add(new MethodSignatureDecl(methodName, returnType, parameters,
                 methodName.Location with
                 {
@@ -336,7 +350,7 @@ public sealed class Parser
         }
 
         Consume(TokenType.RightBrace, "Expected '}' after interface members.");
-        
+
         _logger.Debug("Parse", $"Parsed interface '{name.Lexeme}' with {methods.Count} methods.");
         return new InterfaceDecl(name, methods, modifiers,
             name.Location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine });
@@ -347,9 +361,9 @@ public sealed class Parser
         // enum keyword already consumed
         var name = Consume(TokenType.Identifier, "Expected enum name.");
         Consume(TokenType.LeftBrace, "Expected '{' after enum name.");
-        
+
         _logger.Debug("Parse", $"Parsing enum '{name.Lexeme}'.");
- 
+
         List<EnumVariantNode> variants = [];
         List<ParameterNode> parameters = [];
         List<MethodDecl> methods = [];
@@ -364,9 +378,9 @@ public sealed class Parser
         {
             variants.Add(ParseEnumVariant());
         }
-        
+
         _logger.Debug("Parse", $"Parsed {variants.Count} variants for enum '{name.Lexeme}'.");
-        
+
         // enum ctor
         if (Check(TokenType.Identifier) && Peek().Lexeme == name.Lexeme)
         {
@@ -549,16 +563,28 @@ public sealed class Parser
         {
             initializer = ParseExpression();
         }
-
+        
         Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
+
+        if (type is InferredTypeNode && initializer is null)
+        {
+            _logger.Error("Parse", "Cannot infer type without initializer.", type.Location);
+            SynchronizeStatement();
+        }
+
         return new VarDeclStmt(type, name, initializer, type.Location);
     }
 
-    private ExprStmt ParseExprStmt()
+    private Stmt ParseExprStmt()
     {
         var location = CurrentLocation();
         var expr = ParseExpression();
-        Consume(TokenType.Semicolon, "Expected ';' after expression.");
+        var res = Consume(TokenType.Semicolon, "Expected ';' after expression.");
+        if (res.Type == TokenType.Error)
+        {
+            _logger.Error("Parse", "Expected ';' after expression.", res.Location);
+            return new ErrorStmt(res.Location);
+        }
         return new ExprStmt(expr,
             location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine });
     }
@@ -712,7 +738,9 @@ public sealed class Parser
                 location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine });
         }
 
-        throw new ParseException($"Unexpected token '{Peek().Lexeme}'.", location);
+        _logger.Error("Parse", "Expected expression.", location);
+        SynchronizeExpression();
+        return new ErrorExpr(location);
     }
 
     private Expr ParseExpression()
@@ -729,8 +757,9 @@ public sealed class Parser
             if (expr is VariableExpr or GetExpr or OptionalGetExpr)
                 return new AssignExpr(expr, value,
                     expr.Location with { EndColumn = value.Location.EndColumn, EndLine = value.Location.EndLine });
-            _logger.Debug("Parse", "Assignment target is not a variable.", Previous().Location);
-            throw new ParseException("Invalid assignment target.", Previous().Location);
+            _logger.Error("Parse", "Assignment target is not a variable.", Previous().Location);
+            SynchronizeExpression();
+            return new ErrorExpr(expr.Location);
         }
 
         return expr;
@@ -922,17 +951,90 @@ public sealed class Parser
     private Token Consume(TokenType type, string message)
     {
         if (Check(type)) return Advance();
-        _logger.Error("Parse", message, Peek().Location);
-        throw new ParseException(message, Peek().Location);
+        return ErrorToken(message, Peek().Location);
     }
 
 // current token location
     private TokenLocation CurrentLocation() => Peek().Location;
 
-    #endregion
-}
+    private Token ErrorToken(string message, TokenLocation location)
+    {
+        _logger.Error("Parse", message, location);
+        return new Token(TokenType.Error, message, null, location);
+    }
 
-public sealed class ParseException(string message, TokenLocation location) : Exception(message)
-{
-    public TokenLocation Location { get; } = location;
+    private void SynchronizeStatement()
+    {
+        while (!IsAtEnd())
+        {
+            if (Previous().Type == TokenType.Semicolon) return;
+            switch (Peek().Type)
+            {
+                case TokenType.If:
+                case TokenType.While:
+                case TokenType.For:
+                case TokenType.Return:
+                case TokenType.Let:
+                case TokenType.RightBrace:
+                    return;
+            }
+
+            Advance();
+        }
+    }
+
+    private void SynchronizeMember()
+    {
+        while (!IsAtEnd())
+        {
+            switch (Peek().Type)
+            {
+                case TokenType.Public:
+                case TokenType.Private:
+                case TokenType.Static:
+                case TokenType.RightBrace:
+                    return;
+            }
+
+            Advance();
+        }
+    }
+
+    private void SynchronizeDeclaration()
+    {
+        while (!IsAtEnd())
+        {
+            switch (Peek().Type)
+            {
+                case TokenType.Class:
+                case TokenType.Interface:
+                case TokenType.Enum:
+                case TokenType.Public:
+                case TokenType.Private:
+                case TokenType.Static:
+                    return;
+            }
+
+            Advance();
+        }
+    }
+
+    private void SynchronizeExpression()
+    {
+        while (!IsAtEnd())
+        {
+            switch (Peek().Type)
+            {
+                case TokenType.Semicolon:
+                case TokenType.RightBrace:
+                case TokenType.RightParen:
+                case TokenType.Comma:
+                    return;
+            }
+
+            Advance();
+        }
+    }
+
+    #endregion
 }

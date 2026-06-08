@@ -256,7 +256,7 @@ public class Binder
             var (callable, stmt) = _scope.DequeuePendingBody();
             _logger.Debug("Bind:4", $"Resolving body for '{callable.Name}'");
             
-            BoundCallableBody? resolved = callable switch
+            var resolved = callable switch
             {
                 BoundMethod m => new BoundMethodBody(BindBodyStatement(stmt, m.Parameters, m.ParentType, m.ReturnType), m.Source),
                 BoundConstructor c => new BoundConstructorBody(BindBodyStatement(stmt, c.Parameters, c.ParentType), c.Source),

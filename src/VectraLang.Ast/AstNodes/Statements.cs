@@ -9,6 +9,8 @@ public sealed record VarDeclStmt(
     Expr? Initializer,       // null when int z; form is used
     TokenLocation Location) : Stmt(Location);
 
+public sealed record ErrorStmt(TokenLocation Location) : Stmt(Location);
+
 public sealed record ExprStmt(
     Expr Expression,
     TokenLocation Location) : Stmt(Location);

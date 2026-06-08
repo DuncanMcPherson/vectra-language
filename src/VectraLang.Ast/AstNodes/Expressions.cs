@@ -10,6 +10,8 @@ public sealed record BinaryExpr(
     TokenLocation Location)
     : Expr(Location);
 
+public sealed record ErrorExpr(TokenLocation Location) : Expr(Location);
+
 public sealed record UnaryExpr(Token Operator, Expr Right, TokenLocation Location)
     : Expr(Location);
 
