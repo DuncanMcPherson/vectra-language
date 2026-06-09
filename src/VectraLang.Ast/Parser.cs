@@ -45,14 +45,14 @@ public sealed class Parser
         SpaceDecl? space = null;
         do
         {
-            var name = Consume(TokenType.Identifier, "Expected space name.");
+            var name = Consume(TokenType.Identifier, "Expected space name.", SynchronizeDeclaration);
             var newSpace = new SpaceDecl(name, space, [], [],
                 location with { EndColumn = name.Location.EndColumn, EndLine = name.Location.EndLine });
             space?.AddChild(newSpace);
             space = newSpace;
         } while (Match(TokenType.Dot));
 
-        Consume(TokenType.Semicolon, "Expected ';' after space declaration.");
+        Consume(TokenType.Semicolon, "Expected ';' after space declaration.", SynchronizeDeclaration);
         _logger.Debug("Parse", "Parsed space declaration.");
 
         while (!IsAtEnd())
@@ -79,7 +79,7 @@ public sealed class Parser
             var name = ParseQualifiedName();
             enterDeclarations.Add(new EnterDecl(name,
                 location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine }));
-            Consume(TokenType.Semicolon, "Expected ';' after enter declaration.");
+            Consume(TokenType.Semicolon, "Expected ';' after enter declaration.", SynchronizeTopLevel);
         }
 
         return enterDeclarations;
@@ -90,7 +90,8 @@ public sealed class Parser
         var sb = new StringBuilder();
         do
         {
-            sb.Append(Consume(TokenType.Identifier, "Expected identifier in qualified name").Lexeme);
+            sb.Append(
+                Consume(TokenType.Identifier, "Expected identifier in qualified name", SynchronizeTopLevel).Lexeme);
             if (Match(TokenType.Dot))
                 sb.Append('.');
         } while (!Check(TokenType.Semicolon));
@@ -109,12 +110,11 @@ public sealed class Parser
     private ITopLevelDecl? ParseDeclaration()
     {
         var modifiers = ParseModifiers();
-        if (!Match(TokenType.Class, TokenType.Interface, TokenType.Enum))
-        {
-            _logger.Error("Parse", "Expected class, interface, or enum declaration.", CurrentLocation());
-            SynchronizeDeclaration();
+
+        if (Consume([TokenType.Class, TokenType.Interface, TokenType.Enum],
+                "Expected class, interface, or enum declaration.", SynchronizeDeclaration).Type == TokenType.Error)
             return null;
-        }
+
         var type = Previous();
         _logger.Debug("Parse",
             $"Parsing {type.Lexeme} declaration with modifiers: {string.Join(", ", modifiers.Select(m => m.Lexeme))}");
@@ -123,14 +123,14 @@ public sealed class Parser
             TokenType.Class => ParseClassDeclaration(modifiers),
             TokenType.Interface => ParseInterfaceDeclaration(modifiers),
             TokenType.Enum => ParseEnumDeclaration(modifiers),
-            _ => throw new Exception()
+            _ => null
         };
     }
 
     private ClassDecl ParseClassDeclaration(List<Token> modifiers)
     {
         var location = Previous().Location;
-        var name = Consume(TokenType.Identifier, "Expected class name.");
+        var name = Consume(TokenType.Identifier, "Expected class name.", SynchronizeMember);
         var cls = new ClassDecl(name, [], [], [], [], modifiers,
             location with { EndColumn = name.Location.EndColumn, EndLine = name.Location.EndLine });
         _logger.Debug("Parse", $"Parsing class declaration. Class name: {name.Lexeme}");
@@ -141,10 +141,12 @@ public sealed class Parser
     private void ParseClassMembers(ClassDecl cls)
     {
         // We haven't consumed the opening brace yet
-        Consume(TokenType.LeftBrace, "Expected '{' after class name.");
+        Consume(TokenType.LeftBrace, "Expected '{' after class name.", SynchronizeMember);
         _logger.Debug("Parse", "Parsing class members.");
         while (!Check(TokenType.RightBrace))
         {
+            if (IsAtEnd())
+                break;
             var memberModifiers = ParseModifiers();
             var type = ParseTypeNode();
             switch (type)
@@ -166,7 +168,7 @@ public sealed class Parser
                 }
             }
 
-            var name = Consume(TokenType.Identifier, "Expected class member name.");
+            var name = Consume(TokenType.Identifier, "Expected class member name.", SynchronizeMember);
             if (Peek().Type == TokenType.Equal)
             {
                 // Consume the '='
@@ -174,7 +176,7 @@ public sealed class Parser
 
                 var initializer = ParseExpression();
                 // End the instruction with a semicolon
-                Consume(TokenType.Semicolon, "Expected ';' after field initializer.");
+                Consume(TokenType.Semicolon, "Expected ';' after field initializer.", SynchronizeMember);
                 _logger.Debug("Parse", $"Parsed field for class member '{name.Lexeme}'");
                 cls.Fields.Add(new FieldDecl(type, name, initializer, memberModifiers,
                     type.Location with
@@ -208,23 +210,23 @@ public sealed class Parser
             ParseProperty(memberModifiers, cls, type, name);
         }
 
-        Consume(TokenType.RightBrace, "Expected '}' after class members.");
+        Consume(TokenType.RightBrace, "Expected '}' after class members.", SynchronizeDeclaration);
     }
 
     private void ParseConstructor(List<Token> memberModifiers, ClassDecl cls, PrimitiveTypeNode primitive)
     {
         // We have not consumed the opening parenthesis yet
-        Consume(TokenType.LeftParen, "Expected '(' after class name.");
+        Consume(TokenType.LeftParen, "Expected '(' after class name.", SynchronizeStatement);
         var parameters = new List<ParameterNode>();
         while (!Check(TokenType.RightParen))
         {
             parameters.Add(ParseParameter());
             if (!Check(TokenType.Comma))
                 break;
-            Consume(TokenType.Comma, "Expected ',' after parameter.");
+            Consume(TokenType.Comma, "Expected ',' after parameter.", SynchronizeExpression);
         }
 
-        Consume(TokenType.RightParen, "Expected ')' after parameters.");
+        Consume(TokenType.RightParen, "Expected ')' after parameters.", SynchronizeStatement);
         _logger.Debug("Parse",
             $"Parsed constructor parameters: {string.Join(", ", parameters.Select(p => p.Name.Lexeme))}");
         if (Peek().Lexeme == ":")
@@ -255,11 +257,11 @@ public sealed class Parser
             parameters.Add(ParseParameter());
             if (!Check(TokenType.Comma))
                 break;
-            Consume(TokenType.Comma, "Expected ',' after parameter.");
+            Consume(TokenType.Comma, "Expected ',' after parameter.", SynchronizeExpression);
         }
 
         _logger.Debug("Parse", $"Parsed method parameters: {string.Join(", ", parameters.Select(p => p.Name.Lexeme))}");
-        Consume(TokenType.RightParen, "Expected ')' after parameters.");
+        Consume(TokenType.RightParen, "Expected ')' after parameters.", SynchronizeStatement);
 
         _logger.Debug("Parse", $"Parsing method body for method '{nameToken.Lexeme}'.");
         var body = ParseBlock();
@@ -270,7 +272,8 @@ public sealed class Parser
     private void ParseProperty(List<Token> memberModifiers, ClassDecl cls, TypeNode type, Token nameToken)
     {
         // We have not consumed the opening brace yet
-        var location = Consume(TokenType.LeftBrace, "Expected '{' for property definition.").Location;
+        var location = Consume(TokenType.LeftBrace, "Expected '{' for property definition.", SynchronizeMember)
+            .Location;
 
         BlockStmt? getter = null;
         BlockStmt? setter = null;
@@ -307,7 +310,7 @@ public sealed class Parser
             }
         }
 
-        Consume(TokenType.RightBrace, "Expected '}' for property definition.");
+        Consume(TokenType.RightBrace, "Expected '}' for property definition.", SynchronizeMember);
         _logger.Debug("Parse", $"Parsed property '{nameToken.Lexeme}'.");
         var prop = new PropertyDecl(type, nameToken, getter, setter, memberModifiers,
             location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine });
@@ -317,17 +320,17 @@ public sealed class Parser
     private InterfaceDecl ParseInterfaceDeclaration(List<Token> modifiers)
     {
         // Interface keyword already consumed
-        var name = Consume(TokenType.Identifier, "Expected interface name.");
+        var name = Consume(TokenType.Identifier, "Expected interface name.", SynchronizeDeclaration);
         _logger.Debug("Parse", $"Parsing interface '{name.Lexeme}'.");
-        Consume(TokenType.LeftBrace, "Expected '{' after interface name.");
+        Consume(TokenType.LeftBrace, "Expected '{' after interface name.", SynchronizeMemberSignature);
 
         List<MethodSignatureDecl> methods = [];
         while (!Check(TokenType.RightBrace) && !IsAtEnd())
         {
             var returnType = ParseTypeNode();
-            var methodName = Consume(TokenType.Identifier, "Expected method name.");
+            var methodName = Consume(TokenType.Identifier, "Expected method name.", SynchronizeMemberSignature);
             // TODO: Type parameters when we support generics
-            Consume(TokenType.LeftParen, "Expected '(' after method name.");
+            Consume(TokenType.LeftParen, "Expected '(' after method name.", SynchronizeExpression);
             List<ParameterNode> parameters = [];
             if (!Check(TokenType.RightParen))
             {
@@ -337,8 +340,8 @@ public sealed class Parser
                 } while (Match(TokenType.Comma));
             }
 
-            Consume(TokenType.RightParen, "Expected ')' after parameter list.");
-            Consume(TokenType.Semicolon, "Expected ';' after method declaration.");
+            Consume(TokenType.RightParen, "Expected ')' after parameter list.", SynchronizeMemberSignature);
+            Consume(TokenType.Semicolon, "Expected ';' after method declaration.", SynchronizeMemberSignature);
 
             _logger.Debug("Parse",
                 $"Parsed method signature '{methodName.Lexeme}' with {parameters.Count} parameters.");
@@ -349,7 +352,7 @@ public sealed class Parser
                 }));
         }
 
-        Consume(TokenType.RightBrace, "Expected '}' after interface members.");
+        Consume(TokenType.RightBrace, "Expected '}' after interface members.", SynchronizeDeclaration);
 
         _logger.Debug("Parse", $"Parsed interface '{name.Lexeme}' with {methods.Count} methods.");
         return new InterfaceDecl(name, methods, modifiers,
@@ -359,8 +362,8 @@ public sealed class Parser
     private EnumDecl ParseEnumDeclaration(List<Token> modifiers)
     {
         // enum keyword already consumed
-        var name = Consume(TokenType.Identifier, "Expected enum name.");
-        Consume(TokenType.LeftBrace, "Expected '{' after enum name.");
+        var name = Consume(TokenType.Identifier, "Expected enum name.", SynchronizeDeclaration);
+        Consume(TokenType.LeftBrace, "Expected '{' after enum name.", SynchronizeMemberSignature);
 
         _logger.Debug("Parse", $"Parsing enum '{name.Lexeme}'.");
 
@@ -385,7 +388,7 @@ public sealed class Parser
         if (Check(TokenType.Identifier) && Peek().Lexeme == name.Lexeme)
         {
             Advance();
-            Consume(TokenType.LeftParen, "Expected '(' after enum name.");
+            Consume(TokenType.LeftParen, "Expected '(' after enum name.", SynchronizeExpression);
             if (!Check(TokenType.RightParen))
             {
                 do
@@ -394,9 +397,9 @@ public sealed class Parser
                 } while (Match(TokenType.Comma));
             }
 
-            Consume(TokenType.RightParen, "Expected ')' after enum parameters.");
-            Consume(TokenType.LeftBrace, "Expected '{' after enum constructor.");
-            Consume(TokenType.RightBrace, "Expected '}' to close enum constructor.");
+            Consume(TokenType.RightParen, "Expected ')' after enum parameters.", SynchronizeStatement);
+            Consume(TokenType.LeftBrace, "Expected '{' after enum constructor.", SynchronizeMember);
+            Consume(TokenType.RightBrace, "Expected '}' to close enum constructor.", SynchronizeMember);
         }
 
         fields.AddRange(parameters.Select(param => new FieldDecl(param.Type, param.Name, null, [], param.Location)));
@@ -405,11 +408,11 @@ public sealed class Parser
         {
             var memberModifiers = ParseModifiers();
             var returnType = ParseTypeNode();
-            var methodName = Consume(TokenType.Identifier, "Expected method name.");
+            var methodName = Consume(TokenType.Identifier, "Expected method name.", SynchronizeMember);
             methods.Add(ParseEnumMethod(memberModifiers, returnType, methodName));
         }
 
-        Consume(TokenType.RightBrace, "Expected '}' to close enum definition.");
+        Consume(TokenType.RightBrace, "Expected '}' to close enum definition.", SynchronizeDeclaration);
         _logger.Debug("Parse", $"Parsed enum '{name.Lexeme}' with {methods.Count} methods.");
         return new EnumDecl(name, parameters, fields, variants, methods, modifiers,
             name.Location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine });
@@ -418,8 +421,8 @@ public sealed class Parser
     private EnumVariantNode ParseEnumVariant()
     {
         _logger.Debug("Parse", "Parsing enum variant.");
-        var name = Consume(TokenType.Identifier, "Expected enum variant name.");
-        Consume(TokenType.LeftParen, "Expected '(' after enum variant name.");
+        var name = Consume(TokenType.Identifier, "Expected enum variant name.", SynchronizeMember);
+        Consume(TokenType.LeftParen, "Expected '(' after enum variant name.", SynchronizeMember);
         List<Expr> arguments = [];
         if (!Check(TokenType.RightParen))
         {
@@ -429,7 +432,7 @@ public sealed class Parser
             } while (Match(TokenType.Comma));
         }
 
-        Consume(TokenType.RightParen, "Expected ')' after enum variant arguments.");
+        Consume(TokenType.RightParen, "Expected ')' after enum variant arguments.", SynchronizeMember);
         List<MethodDecl> overrides = [];
         if (Match(TokenType.LeftBrace))
         {
@@ -437,15 +440,16 @@ public sealed class Parser
             {
                 var overrideMods = ParseModifiers();
                 var returnType = ParseTypeNode();
-                var methodName = Consume(TokenType.Identifier, "Expected method name for enum variant override.");
+                var methodName = Consume(TokenType.Identifier, "Expected method name for enum variant override.",
+                    SynchronizeMember);
                 overrides.Add(ParseEnumMethod(overrideMods, returnType, methodName));
             }
 
-            Consume(TokenType.RightBrace, "Expected '}' to close enum variant overrides.");
+            Consume(TokenType.RightBrace, "Expected '}' to close enum variant overrides.", SynchronizeMember);
         }
         else
         {
-            Consume(TokenType.Semicolon, "Expected ';' to close enum variant.");
+            Consume(TokenType.Semicolon, "Expected ';' to close enum variant.", SynchronizeMember);
         }
 
         return new EnumVariantNode(name, arguments, overrides,
@@ -454,17 +458,17 @@ public sealed class Parser
 
     private MethodDecl ParseEnumMethod(List<Token> modifiers, TypeNode returnType, Token methodName)
     {
-        Consume(TokenType.LeftParen, "Expected '(' after method name.");
+        Consume(TokenType.LeftParen, "Expected '(' after method name.", SynchronizeStatement);
         var parameters = new List<ParameterNode>();
         while (!Check(TokenType.RightParen))
         {
             parameters.Add(ParseParameter());
             if (!Check(TokenType.Comma))
                 break;
-            Consume(TokenType.Comma, "Expected ',' after parameter.");
+            Consume(TokenType.Comma, "Expected ',' after parameter.", SynchronizeExpression);
         }
 
-        Consume(TokenType.RightParen, "Expected ')' after parameters.");
+        Consume(TokenType.RightParen, "Expected ')' after parameters.", SynchronizeStatement);
         var body = ParseBlock();
         return new MethodDecl(methodName, returnType, parameters, body, modifiers,
             methodName.Location with
@@ -480,7 +484,7 @@ public sealed class Parser
             return new InferredTypeNode(Previous().Location);
         if (Match(TokenType.Void, TokenType.Bool, TokenType.Int, TokenType.Float, TokenType.String))
             return new PrimitiveTypeNode(Previous(), Previous().Location);
-        var typeToken = Consume(TokenType.Identifier, "Expected type name.");
+        var typeToken = Consume(TokenType.Identifier, "Expected type name.", SynchronizeExpression);
         if (Check(TokenType.Less))
         {
             Advance();
@@ -490,7 +494,7 @@ public sealed class Parser
                 typeArgs.Add(ParseTypeNode());
             } while (Match(TokenType.Comma));
 
-            Consume(TokenType.Greater, "Expected '>'.");
+            Consume(TokenType.Greater, "Expected '>'.", SynchronizeExpression);
             return new GenericTypeNode(typeToken, typeArgs,
                 typeToken.Location with
                 {
@@ -504,7 +508,7 @@ public sealed class Parser
     private ParameterNode ParseParameter()
     {
         var type = ParseTypeNode();
-        var name = Consume(TokenType.Identifier, "Expected parameter name.");
+        var name = Consume(TokenType.Identifier, "Expected parameter name.", SynchronizeExpression);
         _logger.Debug("Parse", $"Parsing parameter '{name.Lexeme}'.");
         return new ParameterNode(type, name,
             type.Location with { EndColumn = name.Location.EndColumn, EndLine = name.Location.EndLine });
@@ -515,13 +519,13 @@ public sealed class Parser
     private BlockStmt ParseBlock()
     {
         var location = CurrentLocation();
-        Consume(TokenType.LeftBrace, "Expected '{'.");
+        Consume(TokenType.LeftBrace, "Expected '{'.", SynchronizeStatement);
         _logger.Debug("Parse", "Parsing block.");
         List<Stmt> statements = [];
 
         while (!Check(TokenType.RightBrace) && !IsAtEnd())
             statements.Add(ParseStatement());
-        Consume(TokenType.RightBrace, "Expected '}'.");
+        Consume(TokenType.RightBrace, "Expected '}'.", SynchronizeStatement);
         _logger.Debug("Parse", "Parsed block.");
         return new BlockStmt(statements,
             location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine });
@@ -557,14 +561,14 @@ public sealed class Parser
 
     private VarDeclStmt ParseVarDecl(TypeNode type)
     {
-        var name = Consume(TokenType.Identifier, "Expected a variable name.");
+        var name = Consume(TokenType.Identifier, "Expected a variable name.", SynchronizeExpression);
         Expr? initializer = null;
         if (Match(TokenType.Equal))
         {
             initializer = ParseExpression();
         }
-        
-        Consume(TokenType.Semicolon, "Expected ';' after variable declaration.");
+
+        Consume(TokenType.Semicolon, "Expected ';' after variable declaration.", SynchronizeStatement);
 
         if (type is InferredTypeNode && initializer is null)
         {
@@ -579,12 +583,8 @@ public sealed class Parser
     {
         var location = CurrentLocation();
         var expr = ParseExpression();
-        var res = Consume(TokenType.Semicolon, "Expected ';' after expression.");
-        if (res.Type == TokenType.Error)
-        {
-            _logger.Error("Parse", "Expected ';' after expression.", res.Location);
-            return new ErrorStmt(res.Location);
-        }
+        Consume(TokenType.Semicolon, "Expected ';' after expression.", SynchronizeStatement);
+
         return new ExprStmt(expr,
             location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine });
     }
@@ -592,9 +592,9 @@ public sealed class Parser
     private IfStmt ParseIfStmt()
     {
         var location = Previous().Location;
-        Consume(TokenType.LeftParen, "Expected '(' after 'if'.");
+        Consume(TokenType.LeftParen, "Expected '(' after 'if'.", SynchronizeExpression);
         var condition = ParseExpression();
-        Consume(TokenType.RightParen, "Expected ')' after if condition.");
+        Consume(TokenType.RightParen, "Expected ')' after if condition.", SynchronizeStatement);
 
         var thenBranch = ParseStatement();
         Stmt? elseBranch = null;
@@ -607,9 +607,9 @@ public sealed class Parser
     private WhileStmt ParseWhileStmt()
     {
         var location = Previous().Location;
-        Consume(TokenType.LeftParen, "Expected '(' after 'while'.");
+        Consume(TokenType.LeftParen, "Expected '(' after 'while'.", SynchronizeExpression);
         var condition = ParseExpression();
-        Consume(TokenType.RightParen, "Expected ')' after while condition.");
+        Consume(TokenType.RightParen, "Expected ')' after while condition.", SynchronizeStatement);
         var body = ParseStatement();
         return new WhileStmt(condition, body,
             location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine });
@@ -618,7 +618,7 @@ public sealed class Parser
     private ForStmt ParseForStmt()
     {
         var location = Previous().Location;
-        Consume(TokenType.LeftParen, "Expected '(' after 'for'.");
+        Consume(TokenType.LeftParen, "Expected '(' after 'for'.", SynchronizeExpression);
         Stmt? initializer = null;
         if (!Check(TokenType.Semicolon))
         {
@@ -639,18 +639,18 @@ public sealed class Parser
         }
         else
         {
-            Consume(TokenType.Semicolon, "Expected ';' after initializer.");
+            Consume(TokenType.Semicolon, "Expected ';' after initializer.", SynchronizeExpression);
         }
 
         Expr? condition = null;
         if (!Check(TokenType.Semicolon))
             condition = ParseExpression();
-        Consume(TokenType.Semicolon, "Expected ';' after condition.");
+        Consume(TokenType.Semicolon, "Expected ';' after condition.", SynchronizeExpression);
 
         Expr? incement = null;
         if (!Check(TokenType.RightParen))
             incement = ParseExpression();
-        Consume(TokenType.RightParen, "Expected ')' after for clauses.");
+        Consume(TokenType.RightParen, "Expected ')' after for clauses.", SynchronizeStatement);
         var body = ParseStatement();
 
         return new ForStmt(initializer, condition, incement, body,
@@ -663,7 +663,7 @@ public sealed class Parser
         Expr? value = null;
         if (!Check(TokenType.Semicolon))
             value = ParseExpression();
-        Consume(TokenType.Semicolon, "Expected ';' after return value.");
+        Consume(TokenType.Semicolon, "Expected ';' after return value.", SynchronizeStatement);
         return new ReturnStmt(value,
             location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine });
     }
@@ -699,7 +699,7 @@ public sealed class Parser
         if (Match(TokenType.LeftParen))
         {
             var inner = ParseExpression();
-            Consume(TokenType.RightParen, "Expected ')'");
+            Consume(TokenType.RightParen, "Expected ')'", SynchronizeExpression);
             return new GroupingExpr(inner,
                 location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine });
         }
@@ -709,11 +709,11 @@ public sealed class Parser
             List<Token> names = [];
             do
             {
-                names.Add(Consume(TokenType.Identifier, "Expected identifier in destructuring"));
+                names.Add(Consume(TokenType.Identifier, "Expected identifier in destructuring", SynchronizeExpression));
             } while (Match(TokenType.Comma));
 
-            Consume(TokenType.RightBrace, "Expected '}' after destructuring");
-            Consume(TokenType.Equal, "Expected '=' after destructure pattern.");
+            Consume(TokenType.RightBrace, "Expected '}' after destructuring", SynchronizeExpression);
+            Consume(TokenType.Equal, "Expected '=' after destructure pattern.", SynchronizeExpression);
             var value = ParseExpression();
             return new DestructureExpr(names, value,
                 location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine });
@@ -721,8 +721,8 @@ public sealed class Parser
 
         if (Match(TokenType.New))
         {
-            var typeName = Consume(TokenType.Identifier, "Expected class name after 'new'");
-            Consume(TokenType.LeftParen, "Expected '(' after class name.");
+            var typeName = Consume(TokenType.Identifier, "Expected class name after 'new'", SynchronizeExpression);
+            Consume(TokenType.LeftParen, "Expected '(' after class name.", SynchronizeExpression);
 
             List<Expr> arguments = [];
             if (!Check(TokenType.RightParen))
@@ -733,7 +733,7 @@ public sealed class Parser
                 } while (Match(TokenType.Comma));
             }
 
-            Consume(TokenType.RightParen, "Expected ')' after constructor arguments.");
+            Consume(TokenType.RightParen, "Expected ')' after constructor arguments.", SynchronizeExpression);
             return new NewExpr(typeName, arguments,
                 location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine });
         }
@@ -873,13 +873,13 @@ public sealed class Parser
             }
             else if (Match(TokenType.Dot))
             {
-                var name = Consume(TokenType.Identifier, "Expected property name after '.'.");
+                var name = Consume(TokenType.Identifier, "Expected property name after '.'.", SynchronizeExpression);
                 expr = new GetExpr(expr, name,
                     expr.Location with { EndColumn = name.Location.EndColumn, EndLine = name.Location.EndLine });
             }
             else if (Match(TokenType.QuestionDot))
             {
-                var name = Consume(TokenType.Identifier, "Expected property name after '?'.");
+                var name = Consume(TokenType.Identifier, "Expected property name after '?'.", SynchronizeExpression);
                 expr = new OptionalGetExpr(expr, name,
                     expr.Location with { EndColumn = name.Location.EndColumn, EndLine = name.Location.EndLine });
             }
@@ -901,7 +901,7 @@ public sealed class Parser
             } while (Match(TokenType.Comma));
         }
 
-        Consume(TokenType.RightParen, "Expected ')' after arguments.");
+        Consume(TokenType.RightParen, "Expected ')' after arguments.", SynchronizeExpression);
         return new CallExpr(callee, args,
             callee.Location with { EndColumn = Previous().Location.EndColumn, EndLine = Previous().Location.EndLine });
     }
@@ -931,6 +931,7 @@ public sealed class Parser
 
 // check current token type without consuming
     private bool Check(TokenType type) => !IsAtEnd() && Peek().Type == type;
+    private bool Check(params TokenType[] types) => types.Contains(Peek().Type);
 
 // consume if current token matches any of the given types
     private bool Match(params TokenType[] types)
@@ -948,9 +949,19 @@ public sealed class Parser
     }
 
 // consume expected token or throw
-    private Token Consume(TokenType type, string message)
+    private Token Consume(TokenType type, string message, Action? onError = null)
     {
         if (Check(type)) return Advance();
+        _logger.Error("Parse", message, Peek().Location);
+        onError?.Invoke();
+        return ErrorToken(message, Peek().Location);
+    }
+
+    private Token Consume(TokenType[] types, string message, Action? onError)
+    {
+        if (Check(types)) return Advance();
+        _logger.Error("Parse", message, Peek().Location);
+        onError?.Invoke();
         return ErrorToken(message, Peek().Location);
     }
 
@@ -959,7 +970,6 @@ public sealed class Parser
 
     private Token ErrorToken(string message, TokenLocation location)
     {
-        _logger.Error("Parse", message, location);
         return new Token(TokenType.Error, message, null, location);
     }
 
@@ -975,7 +985,27 @@ public sealed class Parser
                 case TokenType.For:
                 case TokenType.Return:
                 case TokenType.Let:
+                case TokenType.Identifier:
                 case TokenType.RightBrace:
+                    return;
+            }
+
+            Advance();
+        }
+    }
+
+    private void SynchronizeMemberSignature()
+    {
+        while (!IsAtEnd())
+        {
+            switch (Peek().Type)
+            {
+                case TokenType.String:
+                case TokenType.Int:
+                case TokenType.Float:
+                case TokenType.Bool:
+                case TokenType.Void:
+                case TokenType.Identifier:
                     return;
             }
 
@@ -1029,6 +1059,23 @@ public sealed class Parser
                 case TokenType.RightBrace:
                 case TokenType.RightParen:
                 case TokenType.Comma:
+                    return;
+            }
+
+            Advance();
+        }
+    }
+
+    private void SynchronizeTopLevel()
+    {
+        while (!IsAtEnd())
+        {
+            switch (Peek().Type)
+            {
+                case TokenType.Class:
+                case TokenType.Interface:
+                case TokenType.Enum:
+                case TokenType.Space:
                     return;
             }
 
