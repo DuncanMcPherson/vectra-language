@@ -6,5 +6,5 @@ class Program {
 	public static void Main() {
 		let platform = new Platform();
 		PrintLine("Is Windows: " + platform.IsWindows());
-	}
+	
 }
