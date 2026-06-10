@@ -13,6 +13,14 @@ public class BindingScope
     private readonly List<BoundBuiltInMethod> _objectMethods = new();
     private readonly Dictionary<string, BoundTypeDecl> _boundTypes = new();
 
+    public BindingScope()
+    {
+        foreach (var fn in BuiltInRegistry.GlobalFunctions)
+            RegisterGlobalFunction(fn);
+        foreach (var m in BuiltInRegistry.ObjectMethods)
+            RegisterObjectMethod(m);
+    }
+
     public void RegisterGlobalFunction(BoundBuiltInFunction fn)
         => _globalFunctions[fn.Name] = fn;
 

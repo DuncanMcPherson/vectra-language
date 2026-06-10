@@ -38,15 +38,22 @@ public sealed record BoundEnum(
     string QualifiedName,
     List<BoundField> Fields,
     List<BoundMethod> Methods,
+    List<BoundEnumVariant> Variants,
     EnumDecl Source) : BoundTypeDecl(QualifiedName);
+
+public sealed record BoundEnumVariant(
+    string Name,
+    List<BoundExpr> Arguments,
+    List<BoundMethod> Overrides,
+    EnumVariantNode Source) : BoundNode;
 
 public abstract record BoundMemberNode(string Name) : BoundNode;
 
 public abstract record BoundCallable(string Name, List<BoundParameter> Parameters) : BoundMemberNode(Name);
 
-public sealed record BoundField(string Name, BoundType Type, FieldDecl Source) : BoundMemberNode(Name);
+public sealed record BoundField(string Name, BoundType Type, BoundExpr? Initializer, FieldDecl Source) : BoundMemberNode(Name);
 
-public sealed record BoundProperty(string Name, BoundType Type, PropertyDecl Source) : BoundMemberNode(Name);
+public sealed record BoundProperty(string Name, BoundType Type, PropertyDecl Source, BoundPropertyGetter? Getter, BoundPropertySetter? Setter) : BoundMemberNode(Name);
 
 public sealed record BoundParameter(string Name, BoundType Type, ParameterNode Source) : BoundNode;
 
@@ -61,9 +68,9 @@ public sealed record BoundPropertyGetter(
 
 public sealed record BoundPropertySetter(
     string Name,
-    BoundType ReturnType,
+    BoundType ValueType,
     BoundType ParentType,
-    PropertyDecl Source) : BoundCallable(Name, [new("value", ParentType, null!)]);
+    PropertyDecl Source) : BoundCallable(Name, [new("value", ValueType, null!)]);
 
 public sealed record BoundMethodSignature(
     string Name,

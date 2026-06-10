@@ -20,7 +20,7 @@ public class SpectreLogger(DiagnosticSeverity minimumSeverity = DiagnosticSeveri
         var location = evt.Location is not null
             ? $" [grey]({evt.Location.FileName} {evt.Location.StartLine}:{evt.Location.StartColumn})[/]"
             : "";
-        
-        AnsiConsole.MarkupLine($"[{color}][[{label}]][/] [grey][[{evt.Phase}]][/] {evt.Message}{location}");
+        var message = evt.Message.Replace("[", "[[").Replace("]", "]]");
+        AnsiConsole.MarkupLine($"[{color}][[{label}]][/] [grey][[{evt.Phase}]][/] {message}{location}");
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using Spectre.Console;
 using Spectre.Console.Cli;
+using VectraLang.Analysis;
 using VectraLang.Ast;
 using VectraLang.Core;
 using VectraLang.Core.Diagnostics;
@@ -67,15 +68,9 @@ public class BuildCommand : AsyncCommand<BuildCommand.Settings>
             var binder = new Binder(logger);
             var program = binder.Bind(file);
             logger.Info("Bind", "Binding complete.");
-            if (!program.IsSuccess)
-            {
-                foreach (var error in program.Errors)
-                {
-                    AnsiConsole.MarkupLine($"[red]Error: [/] {error}");
-                }
-
-                return 1;
-            }
+            logger.Info("Analysis", "Starting analysis...");
+            var analyzer = new Analyzer(logger);
+            analyzer.Analyze(program);
 
             return 0;
         }
@@ -112,7 +107,10 @@ public class BuildCommand : AsyncCommand<BuildCommand.Settings>
             var binder = new Binder(logger);
             var program = binder.Bind(mergedModule);
             logger.Info("Bind", "Binding complete.");
-            return program.IsSuccess ? 0 : 1;
+            logger.Info("Analysis", "Starting analysis...");
+            var analyzer = new Analyzer(logger);
+            analyzer.Analyze(program);
+            return 0;
         }
         catch (Exception e)
         {
@@ -146,7 +144,10 @@ public class BuildCommand : AsyncCommand<BuildCommand.Settings>
             var binder = new Binder(logger);
             var program = binder.Bind(mergedPackage);
             logger.Info("Bind", "Binding complete.");
-            return program.IsSuccess ? 0 : 1;
+            logger.Info("Analysis", "Starting analysis...");
+            var analyzer = new Analyzer(logger);
+            analyzer.Analyze(program);
+            return 0;
         }
         catch (Exception e)
         {
