@@ -83,6 +83,7 @@ public sealed record BoundAssignExpr(
 public sealed record BoundCallExpr(
     BoundExpr Callee,
     List<BoundExpr> Arguments,
+    IBoundInvocable? ResolvedTarget,
     BoundType Type) : BoundExpr(Type);
 
 public sealed record BoundGetExpr(
@@ -93,6 +94,7 @@ public sealed record BoundGetExpr(
 public sealed record BoundNewExpr(
     BoundType TargetType,
     List<BoundExpr> Arguments,
+    BoundConstructor? ResolvedConstructor,
     BoundType Type) : BoundExpr(Type);
 
 public sealed record BoundErrorExpr(

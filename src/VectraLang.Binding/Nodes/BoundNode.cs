@@ -58,7 +58,7 @@ public sealed record BoundProperty(string Name, BoundType Type, PropertyDecl Sou
 public sealed record BoundParameter(string Name, BoundType Type, ParameterNode Source) : BoundNode;
 
 public sealed record BoundMethod(string Name, BoundType ReturnType, List<BoundParameter> Parameters, BoundType ParentType, MethodDecl Source)
-    : BoundCallable(Name, Parameters);
+    : BoundCallable(Name, Parameters), IBoundInvocable;
 
 public sealed record BoundPropertyGetter(
     string Name,
@@ -78,5 +78,19 @@ public sealed record BoundMethodSignature(
     List<BoundParameter> Parameters,
     MethodSignatureDecl Source) : BoundNode;
 
-public sealed record BoundConstructor(string Name, List<BoundParameter> Parameters, BoundType ParentType, ConstructorDecl Source)
-    : BoundCallable(Name, Parameters);
+public sealed record BoundConstructor(
+    string Name,
+    List<BoundParameter> Parameters,
+    BoundType ParentType,
+    ConstructorDecl Source)
+    : BoundCallable(Name, Parameters), IBoundInvocable
+{
+    public BoundType ReturnType => ParentType;
+}
+
+public interface IBoundInvocable
+{
+    string Name { get; }
+    BoundType ReturnType { get; }
+    List<BoundParameter> Parameters { get; }
+}

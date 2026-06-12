@@ -480,9 +480,24 @@ public class Binder
     private BoundCallExpr BindCall(CallExpr e)
     {
         _logger.Debug("Bind:4", $"Binding call expression", e.Location);
-        var callee = BindExpr(e.Callee);
         var args = e.Arguments.Select(BindExpr).ToList();
-        return new BoundCallExpr(callee, args, callee.Type);
+        IBoundInvocable? target = null;
+        switch (e.Callee)
+        {
+            case VariableExpr v when _scope.TryResolveGlobalFunction(v.Name.Lexeme, out var fn) && fn is not null:
+                target = fn;
+                break;
+            case GetExpr g:
+            {
+                var obj = BindExpr(g.Object);
+                target = ResolveInvocableMember(obj.Type, g.Name.Lexeme);
+                var memberType = target?.ReturnType ?? ResolveMemberTypeFallback(obj.Type, g.Name.Lexeme, g.Location);
+                var callee = new BoundGetExpr(obj, g.Name.Lexeme, memberType);
+                return new BoundCallExpr(callee, args, target, target?.ReturnType ?? callee.Type);
+            }
+        }
+        var boundCallee = BindExpr(e.Callee);
+        return new BoundCallExpr(boundCallee, args, target, target?.ReturnType ?? boundCallee.Type);
     }
 
     private BoundGetExpr BindGet(GetExpr e)
@@ -502,7 +517,13 @@ public class Binder
         _logger.Debug("Bind:4", $"Binding new expression", e.Location);
         var targetType = ResolveUserType(e.TypeName.Lexeme, e.Location);
         var args = e.Arguments.Select(BindExpr).ToList();
-        return new BoundNewExpr(targetType, args, targetType);
+        BoundConstructor? ctor = null;
+        if (targetType is BoundUserDefinedType udt && _scope.TryResolveBoundType(udt.QualifiedName, out var decl) &&
+            decl is BoundClass c)
+        {
+            ctor = c.Constructors.FirstOrDefault(ct => ct.Parameters.Count == args.Count) ?? c.Constructors.FirstOrDefault();
+        }
+        return new BoundNewExpr(targetType, args, ctor, targetType);
     }
 
     private BoundType ResolveTypeNode(TypeNode typeNode) => typeNode switch
@@ -534,6 +555,26 @@ public class Binder
         
         _logger.Error("Bind:4", $"Unresolved type: '{generic.TypeToken.Lexeme}'.", generic.Location);
         return new BoundErrorType(generic.TypeToken.Lexeme);
+    }
+
+    private IBoundInvocable? ResolveInvocableMember(BoundType type, string memberName)
+    {
+        var objectMethod = _scope.GetObjectMethods().FirstOrDefault(m => m.Name == memberName);
+        if (objectMethod is not null)
+            return objectMethod;
+
+        if (type is BoundUserDefinedType userType && _scope.TryResolveBoundType(userType.QualifiedName, out var decl) &&
+            decl is not null)
+        {
+            return decl switch
+            {
+                BoundClass c => c.Methods.FirstOrDefault(m => m.Name == memberName),
+                BoundEnum e => e.Methods.FirstOrDefault(m => m.Name == memberName),
+                _ => null
+            };
+        }
+
+        return null;
     }
 
     private static bool IsBuiltInType(string name) => name switch
