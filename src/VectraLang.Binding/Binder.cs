@@ -24,11 +24,6 @@ public class Binder
     public BindingResult Bind(MergedPackage package)
     {
         var sharedScope = new BindingScope();
-        foreach (var fn in BuiltInRegistry.GlobalFunctions)
-            sharedScope.RegisterGlobalFunction(fn);
-        foreach (var m in BuiltInRegistry.ObjectMethods)
-            sharedScope.RegisterObjectMethod(m);
-
         var boundModules = new List<BoundModule>(package.Modules.Count);
         var allErrors = new List<string>();
 
@@ -87,7 +82,6 @@ public class Binder
 
     private void PassOne(SpaceDecl space)
     {
-        // TODO: evaluate.
         // in the future, we will have multiple files and will need to allow multiple files in the same space
         _logger.Debug("Bind:1", $"Registering space '{space.Name.Lexeme}'");
         if (!_scope.TryRegisterSpace(space, out var alreadyExists) && !alreadyExists)
@@ -169,19 +163,31 @@ public class Binder
     {
         _logger.Debug("Bind:3", $"Binding enum '{decl.Name.Lexeme}'");
         var enumType = new BoundUserDefinedType(decl.GetFullName(), decl);
-        return new(
-            decl.GetFullName(),
-            decl.Fields.Select(BindField).ToList(),
-            decl.Methods.Select(m => BindMethod(m, enumType)).ToList(),
-            decl);
+        var fields = decl.Fields.Select(BindField).ToList();
+        var methods = decl.Methods.Select(m => BindMethod(m, enumType)).ToList();
+        var variants = decl.Variants.Select(v => BindEnumVariant(v, decl, enumType)).ToList();
+
+        return new(decl.GetFullName(), fields, methods, variants, decl);
+    }
+
+    private BoundEnumVariant BindEnumVariant(EnumVariantNode variant, EnumDecl parentEnum, BoundType enumType)
+    {
+        // Arguments are bound against the enum's field types in order
+        var boundArgs = variant.Arguments.Select(BindExpr).ToList();
+        // Overrides are full methods, same treatment as class methods
+        var boundOverrides = variant.Overrides.Select(o => BindMethod(o, enumType)).ToList();
+        
+        return new(variant.Name.Lexeme, boundArgs, boundOverrides, variant);
     }
 
     private BoundField BindField(FieldDecl decl)
     {
         _logger.Debug("Bind:3", $"Binding field '{decl.Name.Lexeme}'");
+        var initializer = decl.Initializer is not null ? BindExpr(decl.Initializer) : null;
         return new(
             decl.Name.Lexeme,
             ResolveTypeNode(decl.Type),
+            initializer,
             decl);
     }
 
@@ -189,20 +195,22 @@ public class Binder
     {
         _logger.Debug("Bind:3", $"Binding property '{decl.Name.Lexeme}'");
         var propertyType = ResolveTypeNode(decl.Type);
+        BoundPropertyGetter? getter = null;
+        BoundPropertySetter? setter = null;
 
         if (decl.Getter is not null)
         {
-            var getter = new BoundPropertyGetter(decl.Name.Lexeme, propertyType, classType, decl);
+            getter = new BoundPropertyGetter(decl.Name.Lexeme, propertyType, classType, decl);
             _scope.RegisterPendingBody(getter, decl.Getter!);
         }
 
         if (decl.Setter is not null)
         {
-            var setter = new BoundPropertySetter(decl.Name.Lexeme, propertyType, classType, decl);
+            setter = new BoundPropertySetter(decl.Name.Lexeme, propertyType, classType, decl);
             _scope.RegisterPendingBody(setter, decl.Setter!);
         }
         
-        return new BoundProperty(decl.Name.Lexeme, propertyType, decl);   
+        return new BoundProperty(decl.Name.Lexeme, propertyType, decl, getter, setter);   
     }
 
     private BoundParameter BindParameter(ParameterNode param)

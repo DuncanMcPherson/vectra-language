@@ -12,6 +12,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <ProjectReference Include="..\VectraLang.Analysis\VectraLang.Analysis.csproj" />
       <ProjectReference Include="..\VectraLang.Ast\VectraLang.Ast.csproj" />
       <ProjectReference Include="..\VectraLang.Binding\VectraLang.Binding.csproj" />
       <ProjectReference Include="..\VectraLang.Interpreter\VectraLang.Interpreter.csproj" />

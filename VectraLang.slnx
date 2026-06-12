@@ -58,6 +58,7 @@
     <File Path=".github\workflows\release.yml" />
   </Folder>
   <Folder Name="/src/">
+    <Project Path="src/VectraLang.Analysis/VectraLang.Analysis.csproj" />
     <Project Path="src/VectraLang.Ast/VectraLang.Ast.csproj" />
     <Project Path="src/VectraLang.Binding/VectraLang.Binding.csproj" />
     <Project Path="src/VectraLang.Core/VectraLang.Core.csproj" />
