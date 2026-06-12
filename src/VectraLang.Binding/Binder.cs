@@ -165,12 +165,12 @@ public class Binder
         var enumType = new BoundUserDefinedType(decl.GetFullName(), decl);
         var fields = decl.Fields.Select(BindField).ToList();
         var methods = decl.Methods.Select(m => BindMethod(m, enumType)).ToList();
-        var variants = decl.Variants.Select(v => BindEnumVariant(v, decl, enumType)).ToList();
+        var variants = decl.Variants.Select(v => BindEnumVariant(v, enumType)).ToList();
 
         return new(decl.GetFullName(), fields, methods, variants, decl);
     }
 
-    private BoundEnumVariant BindEnumVariant(EnumVariantNode variant, EnumDecl parentEnum, BoundType enumType)
+    private BoundEnumVariant BindEnumVariant(EnumVariantNode variant, BoundType enumType)
     {
         // Arguments are bound against the enum's field types in order
         var boundArgs = variant.Arguments.Select(BindExpr).ToList();
@@ -442,6 +442,12 @@ public class Binder
         _logger.Debug("Bind:4", $"Binding variable expression '{e.Name.Lexeme}' as global", e.Location);
         if (_scope.TryResolveGlobalFunction(e.Name.Lexeme, out var fn) && fn is not null)
             return new BoundVariableExpr(e.Name.Lexeme, fn.ReturnType);
+
+        if (_scope.TryResolveType(e.Name.Lexeme, out var decl) && decl is not null)
+        {
+            _logger.Debug("Bind:4", $"Binding variable expression '{e.Name.Lexeme}' as type", e.Location);
+            return new BoundVariableExpr(e.Name.Lexeme, new BoundUserDefinedType(e.Name.Lexeme, decl));
+        }
         
         _logger.Error("Bind:4", $"Unresolved variable: '{e.Name.Lexeme}'.", e.Location);
         return new BoundVariableExpr(e.Name.Lexeme, new BoundErrorType(e.Name.Lexeme));
