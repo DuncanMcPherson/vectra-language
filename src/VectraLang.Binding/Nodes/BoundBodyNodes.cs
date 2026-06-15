@@ -1,5 +1,6 @@
 ﻿using VectraLang.Ast.AstNodes;
 using VectraLang.Ast.Tokens;
+using VectraLang.Core;
 
 namespace VectraLang.Binding.Nodes;
 
@@ -21,100 +22,119 @@ public sealed record BoundPropertySetterBody(
     List<BoundStmt> Statements,
     PropertyDecl Source) : BoundCallableBody;
 
-public abstract record BoundStmt : BoundNode;
+public abstract record BoundStmt(TokenLocation Location) : BoundNode;
 
-public sealed record BoundBlockStmt(List<BoundStmt> Statements) : BoundStmt;
+public sealed record BoundBlockStmt(List<BoundStmt> Statements, TokenLocation Location) : BoundStmt(Location);
 
-public sealed record BoundVarDeclStmt(string Name, BoundType Type, BoundExpr? Initializer) : BoundStmt;
+public sealed record BoundVarDeclStmt(string Name, BoundType Type, BoundExpr? Initializer, TokenLocation Location) : BoundStmt(Location);
 
-public sealed record BoundExprStmt(BoundExpr Expression) : BoundStmt;
+public sealed record BoundExprStmt(BoundExpr Expression, TokenLocation Location) : BoundStmt(Location);
 
 public sealed record BoundIfStmt(
     BoundExpr Condition,
     BoundStmt ThenBranch,
-    BoundStmt? ElseBranch) : BoundStmt;
+    BoundStmt? ElseBranch,
+    TokenLocation Location) : BoundStmt(Location);
 
 public sealed record BoundWhileStmt(
     BoundExpr Condition,
-    BoundStmt Body) : BoundStmt;
+    BoundStmt Body,
+    TokenLocation Location) : BoundStmt(Location);
 
 public sealed record BoundForStmt(
     BoundStmt? Initializer,
     BoundExpr? Condition,
     BoundExpr? Increment,
-    BoundStmt Body) : BoundStmt;
+    BoundStmt Body,
+    TokenLocation Location) : BoundStmt(Location);
 
 public sealed record BoundReturnStmt(
     BoundExpr? Value,
-    BoundType? ExpectedType) : BoundStmt;
+    BoundType? ExpectedType,
+    TokenLocation Location) : BoundStmt(Location);
 
-public sealed record BoundBreakStmt : BoundStmt;
-public sealed record BoundContinueStmt : BoundStmt;
+public sealed record BoundBreakStmt(TokenLocation Location) : BoundStmt(Location);
 
-public sealed record BoundErrorStmt : BoundStmt;
+public sealed record BoundContinueStmt(TokenLocation Location) : BoundStmt(Location);
+
+public sealed record BoundErrorStmt(TokenLocation Location) : BoundStmt(Location);
 
 // Expressions
-public abstract record BoundExpr(BoundType Type) : BoundNode;
+public abstract record BoundExpr(BoundType Type, TokenLocation Location) : BoundNode;
 
 public sealed record BoundBinaryExpr(
     BoundExpr Left,
     Token Operator,
     BoundExpr Right,
-    BoundType Type) : BoundExpr(Type);
+    BoundType Type,
+    TokenLocation Location) : BoundExpr(Type, Location);
 
 public sealed record BoundUnaryExpr(
     Token Operator,
     BoundExpr Operand,
-    BoundType Type) : BoundExpr(Type);
+    BoundType Type,
+    TokenLocation Location) : BoundExpr(Type, Location);
 
 public sealed record BoundGroupingExpr(
     BoundExpr Inner,
-    BoundType Type) : BoundExpr(Type);
+    BoundType Type,
+    TokenLocation Location) : BoundExpr(Type, Location);
 
 public sealed record BoundVariableExpr(
     string Name,
-    BoundType Type) : BoundExpr(Type);
+    BoundType Type,
+    TokenLocation Location) : BoundExpr(Type, Location);
 
 public sealed record BoundAssignExpr(
     BoundExpr Target,
     BoundExpr Value,
-    BoundType Type) : BoundExpr(Type);
+    BoundType Type,
+    TokenLocation Location) : BoundExpr(Type, Location);
 
 public sealed record BoundCallExpr(
     BoundExpr Callee,
     List<BoundExpr> Arguments,
     IBoundInvocable? ResolvedTarget,
-    BoundType Type) : BoundExpr(Type);
+    BoundType Type,
+    TokenLocation Location) : BoundExpr(Type, Location);
 
 public sealed record BoundGetExpr(
     BoundExpr Object,
     string MemberName,
-    BoundType Type) : BoundExpr(Type);
+    BoundType Type,
+    TokenLocation Location) : BoundExpr(Type, Location);
 
 public sealed record BoundNewExpr(
     BoundType TargetType,
     List<BoundExpr> Arguments,
     BoundConstructor? ResolvedConstructor,
-    BoundType Type) : BoundExpr(Type);
+    BoundType Type,
+    TokenLocation Location) : BoundExpr(Type, Location);
 
 public sealed record BoundErrorExpr(
-    BoundType Type) : BoundExpr(Type);
+    BoundType Type,
+    TokenLocation Location) : BoundExpr(Type, Location);
     
 public sealed record BoundIntegerLiteralExpr(
     int Value,
-    BoundType Type) : BoundExpr(Type);
+    BoundType Type,
+    TokenLocation Location) : BoundExpr(Type, Location);
 
 public sealed record BoundFloatLiteralExpr(
     float Value,
-    BoundType Type) : BoundExpr(Type);
+    BoundType Type,
+    TokenLocation Location) : BoundExpr(Type, Location);
 
 public sealed record BoundStringLiteralExpr(
     string Value,
-    BoundType Type) : BoundExpr(Type);
+    BoundType Type,
+    TokenLocation Location) : BoundExpr(Type, Location);
 
 public sealed record BoundBoolLiteralExpr(
     bool Value,
-    BoundType Type) : BoundExpr(Type);
+    BoundType Type,
+    TokenLocation Location) : BoundExpr(Type, Location);
 
 public sealed record BoundNullLiteralExpr(
-    BoundType Type) : BoundExpr(Type);
+    BoundType Type,
+    TokenLocation Location) : BoundExpr(Type, Location);

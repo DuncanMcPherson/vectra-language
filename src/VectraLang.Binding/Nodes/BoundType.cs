@@ -35,5 +35,5 @@ public sealed record BoundInferredType : BoundType
 
 public sealed record BoundErrorType(string Name) : BoundType
 {
-    public override string DisplayName => Name;
+    public override string DisplayName => $"error({Name})";
 }

@@ -276,10 +276,6 @@ public class Analyzer(IVectraLogger logger)
             AnalyzeStatement(stmt.ElseBranch, elseContext);
             context.HasReturn = thenContext.HasReturn && elseContext.HasReturn;
         }
-        // else
-        // {
-        // context.HasReturn = thenContext.HasReturn;
-        // }
     }
 
     private void AnalyzeWhile(BoundWhileStmt stmt, AnalysisContext context)
@@ -426,7 +422,7 @@ public class Analyzer(IVectraLogger logger)
         if (expr.ResolvedTarget is null)
             return expr.Type; // unresolved, binder reported it
 
-        ValidateArguments(expr.ResolvedTarget.Name, expr.ResolvedTarget.Parameters, argTypes, GetLocation(expr));
+        ValidateArguments(expr.ResolvedTarget.Name, expr.ResolvedTarget.Parameters, argTypes, expr.Location);
         return expr.ResolvedTarget.ReturnType;
     }
 
@@ -486,21 +482,19 @@ public class Analyzer(IVectraLogger logger)
         return false;
     }
 
-    private BoundType LogAndReturnError(string message, TokenLocation? location)
+    private BoundType LogAndReturnError(string message, TokenLocation location)
     {
         logger.Error(Phase, message, location);
         return new BoundErrorType("error");
     }
 
-    private static TokenLocation? GetLocation(BoundStmt _)
+    private static TokenLocation GetLocation(BoundStmt s)
     {
-        // TODO: Implement
-        return null;
+        return s.Location;
     }
 
-    private static TokenLocation? GetLocation(BoundExpr _)
+    private static TokenLocation GetLocation(BoundExpr e)
     {
-        // TODO: Implement
-        return null;
+        return e.Location;
     }
 }
