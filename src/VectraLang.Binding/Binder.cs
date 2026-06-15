@@ -165,12 +165,12 @@ public class Binder
         var enumType = new BoundUserDefinedType(decl.GetFullName(), decl);
         var fields = decl.Fields.Select(BindField).ToList();
         var methods = decl.Methods.Select(m => BindMethod(m, enumType)).ToList();
-        var variants = decl.Variants.Select(v => BindEnumVariant(v, decl, enumType)).ToList();
+        var variants = decl.Variants.Select(v => BindEnumVariant(v, enumType)).ToList();
 
         return new(decl.GetFullName(), fields, methods, variants, decl);
     }
 
-    private BoundEnumVariant BindEnumVariant(EnumVariantNode variant, EnumDecl parentEnum, BoundType enumType)
+    private BoundEnumVariant BindEnumVariant(EnumVariantNode variant, BoundType enumType)
     {
         // Arguments are bound against the enum's field types in order
         var boundArgs = variant.Arguments.Select(BindExpr).ToList();
@@ -317,20 +317,20 @@ public class Binder
     {
         BlockStmt b => BindBlock(b),
         VarDeclStmt v => BindVarDecl(v),
-        ExprStmt e => new BoundExprStmt(BindExpr(e.Expression)),
+        ExprStmt e => new BoundExprStmt(BindExpr(e.Expression), e.Location),
         IfStmt i => BindIf(i),
         WhileStmt w => BindWhile(w),
         ForStmt f => BindFor(f),
         ReturnStmt r => BindReturn(r),
-        BreakStmt => new BoundBreakStmt(),
-        ContinueStmt => new BoundContinueStmt(),
+        BreakStmt => new BoundBreakStmt(s.Location),
+        ContinueStmt => new BoundContinueStmt(s.Location),
         _ => CreateErrorStmt(s.Location, "Unknown statement type.")
     };
 
     private BoundErrorStmt CreateErrorStmt(TokenLocation location, string message)
     {
         _logger.Error("Bind:4", message, location);
-        return new BoundErrorStmt();
+        return new BoundErrorStmt(location);
     }
 
     private BoundBlockStmt BindBlock(BlockStmt block)
@@ -341,7 +341,7 @@ public class Binder
         {
             _logger.Debug("Bind:4", "Binding block statements");
             var boundStmts = block.Statements.Select(BindStatement).ToList();
-            return new BoundBlockStmt(boundStmts);
+            return new BoundBlockStmt(boundStmts, block.Location);
         }
         finally
         {
@@ -359,7 +359,7 @@ public class Binder
         if (!_localScope.TryDeclare(decl.Name.Lexeme, boundType))
             _logger.Error("Bind:4", $"Variable with name '{decl.Name.Lexeme}' already declared in this scope.", decl.Location);
         
-        return new BoundVarDeclStmt(decl.Name.Lexeme, boundType, initializer);
+        return new BoundVarDeclStmt(decl.Name.Lexeme, boundType, initializer, decl.Location);
     }
 
     private BoundIfStmt BindIf(IfStmt stmt)
@@ -368,7 +368,7 @@ public class Binder
         var condition = BindExpr(stmt.Condition);
         var thenBranch = BindStatement(stmt.ThenBranch);
         var elseBranch = stmt.ElseBranch is not null ? BindStatement(stmt.ElseBranch) : null;
-        return new BoundIfStmt(condition, thenBranch, elseBranch);
+        return new BoundIfStmt(condition, thenBranch, elseBranch, stmt.Location);
     }
 
     private BoundForStmt BindFor(ForStmt stmt)
@@ -382,7 +382,7 @@ public class Binder
             var condition = stmt.Condition is not null ? BindExpr(stmt.Condition) : null;
             var increment = stmt.Increment is not null ? BindExpr(stmt.Increment) : null;
             var body = BindStatement(stmt.Body);
-            return new BoundForStmt(init, condition, increment, body);
+            return new BoundForStmt(init, condition, increment, body, stmt.Location);
         }
         finally
         {
@@ -395,25 +395,25 @@ public class Binder
         _logger.Debug("Bind:4", "Binding while statement", stmt.Location);
         var condition = BindExpr(stmt.Condition);
         var body = BindStatement(stmt.Body);
-        return new BoundWhileStmt(condition, body);
+        return new BoundWhileStmt(condition, body, stmt.Location);
     }
 
     private BoundReturnStmt BindReturn(ReturnStmt stmt)
     {
         _logger.Debug("Bind:4", "Binding return statement", stmt.Location);
         var value = stmt.Value is not null ? BindExpr(stmt.Value) : null;
-        return new BoundReturnStmt(value, _currentReturnType);
+        return new BoundReturnStmt(value, _currentReturnType, stmt.Location);
     }
 
     private BoundExpr BindExpr(Expr expr)
     {
         return expr switch
         {
-            IntegerLiteralExpr i => new BoundIntegerLiteralExpr(i.Value, new BoundPrimitiveType("int")),
-            FloatLiteralExpr f => new BoundFloatLiteralExpr(f.Value, new BoundPrimitiveType("float")),
-            StringLiteralExpr s => new BoundStringLiteralExpr(s.Value, new BoundPrimitiveType("string")),
-            BoolLiteralExpr b => new BoundBoolLiteralExpr(b.Value, new BoundPrimitiveType("bool")),
-            NullLiteralExpr => new BoundNullLiteralExpr(new BoundPrimitiveType("null")),
+            IntegerLiteralExpr i => new BoundIntegerLiteralExpr(i.Value, new BoundPrimitiveType("int"), i.Location),
+            FloatLiteralExpr f => new BoundFloatLiteralExpr(f.Value, new BoundPrimitiveType("float"), f.Location),
+            StringLiteralExpr s => new BoundStringLiteralExpr(s.Value, new BoundPrimitiveType("string"), s.Location),
+            BoolLiteralExpr b => new BoundBoolLiteralExpr(b.Value, new BoundPrimitiveType("bool"), b.Location),
+            NullLiteralExpr => new BoundNullLiteralExpr(new BoundPrimitiveType("null"), expr.Location),
             VariableExpr v => BindVariable(v),
             AssignExpr a => BindAssign(a),
             BinaryExpr b => BindBinary(b),
@@ -422,7 +422,7 @@ public class Binder
             CallExpr c => BindCall(c),
             GetExpr g => BindGet(g),
             NewExpr n => BindNew(n),
-            _ => new BoundErrorExpr(new BoundErrorType("unknown"))
+            _ => new BoundErrorExpr(new BoundErrorType("unknown"), expr.Location)
         };
     }
 
@@ -430,21 +430,27 @@ public class Binder
     {
         _logger.Debug("Bind:4", "Binding grouping expression", g.Location);
         var inner = BindExpr(g.Inner);
-        return new BoundGroupingExpr(inner, inner.Type);
+        return new BoundGroupingExpr(inner, inner.Type, g.Location);
     }
 
     private BoundVariableExpr BindVariable(VariableExpr e)
     {
         _logger.Debug("Bind:4", $"Binding variable expression '{e.Name.Lexeme}'", e.Location);
         if (_localScope.TryResolve(e.Name.Lexeme, out var type) && type is not null)
-            return new BoundVariableExpr(e.Name.Lexeme, type);
+            return new BoundVariableExpr(e.Name.Lexeme, type, e.Location);
 
         _logger.Debug("Bind:4", $"Binding variable expression '{e.Name.Lexeme}' as global", e.Location);
         if (_scope.TryResolveGlobalFunction(e.Name.Lexeme, out var fn) && fn is not null)
-            return new BoundVariableExpr(e.Name.Lexeme, fn.ReturnType);
+            return new BoundVariableExpr(e.Name.Lexeme, fn.ReturnType, e.Location);
+
+        if (_scope.TryResolveType(e.Name.Lexeme, out var decl) && decl is not null)
+        {
+            _logger.Debug("Bind:4", $"Binding variable expression '{e.Name.Lexeme}' as type", e.Location);
+            return new BoundVariableExpr(e.Name.Lexeme, new BoundUserDefinedType(e.Name.Lexeme, decl), e.Location);
+        }
         
         _logger.Error("Bind:4", $"Unresolved variable: '{e.Name.Lexeme}'.", e.Location);
-        return new BoundVariableExpr(e.Name.Lexeme, new BoundErrorType(e.Name.Lexeme));
+        return new BoundVariableExpr(e.Name.Lexeme, new BoundErrorType(e.Name.Lexeme), e.Location);
     }
 
     private BoundAssignExpr BindAssign(AssignExpr e)
@@ -452,7 +458,7 @@ public class Binder
         _logger.Debug("Bind:4", $"Binding assignment expression", e.Location);
         var target = BindExpr(e.Target);
         var value = BindExpr(e.Value);
-        return new BoundAssignExpr(target, value, target.Type);
+        return new BoundAssignExpr(target, value, target.Type, e.Location);
     }
 
     private BoundBinaryExpr BindBinary(BinaryExpr e)
@@ -461,34 +467,45 @@ public class Binder
         var left = BindExpr(e.Left);
         var right = BindExpr(e.Right);
         // Type resolution will be handled in the analysis phase
-        return new BoundBinaryExpr(left, e.Operator, right, left.Type);
+        return new BoundBinaryExpr(left, e.Operator, right, left.Type, e.Location);
     }
 
     private BoundUnaryExpr BindUnary(UnaryExpr e)
     {
         _logger.Debug("Bind:4", $"Binding unary expression '{e.Operator.Lexeme}'", e.Location);
         var operand = BindExpr(e.Right);
-        return new BoundUnaryExpr(e.Operator, operand, operand.Type);
+        return new BoundUnaryExpr(e.Operator, operand, operand.Type, e.Location);
     }
 
     private BoundCallExpr BindCall(CallExpr e)
     {
         _logger.Debug("Bind:4", $"Binding call expression", e.Location);
-        var callee = BindExpr(e.Callee);
         var args = e.Arguments.Select(BindExpr).ToList();
-        return new BoundCallExpr(callee, args, callee.Type);
+        IBoundInvocable? target = null;
+        switch (e.Callee)
+        {
+            case VariableExpr v when _scope.TryResolveGlobalFunction(v.Name.Lexeme, out var fn) && fn is not null:
+                target = fn;
+                break;
+            case GetExpr g:
+            {
+                var obj = BindExpr(g.Object);
+                target = ResolveInvocableMember(obj.Type, g.Name.Lexeme);
+                var memberType = target?.ReturnType ?? ResolveMemberTypeFallback(obj.Type, g.Name.Lexeme, g.Location);
+                var callee = new BoundGetExpr(obj, g.Name.Lexeme, memberType, g.Location);
+                return new BoundCallExpr(callee, args, target, target?.ReturnType ?? callee.Type, e.Location);
+            }
+        }
+        var boundCallee = BindExpr(e.Callee);
+        return new BoundCallExpr(boundCallee, args, target, target?.ReturnType ?? boundCallee.Type, e.Location);
     }
 
     private BoundGetExpr BindGet(GetExpr e)
     {
-        _logger.Debug("Bind:4", $"Binding get expression", e.Location);
+        _logger.Debug("Bind:4", "Binding get expression", e.Location);
         var obj = BindExpr(e.Object);
-        _logger.Debug("Bind:4", $"Bound object expression, resolving member '{e.Name.Lexeme}'", e.Location);
-        if (_scope.TryResolveMember(obj.Type, e.Name.Lexeme, out var memberType) && memberType is not null)
-            return new BoundGetExpr(obj, e.Name.Lexeme, memberType);
-        
-        _logger.Error("Bind:4", $"'{e.Name.Lexeme}' is not a member of '{obj.Type}'", e.Location);
-        return new BoundGetExpr(obj, e.Name.Lexeme, new BoundErrorType(e.Name.Lexeme));
+        var memberType = ResolveMemberTypeFallback(obj.Type, e.Name.Lexeme, e.Location);
+        return new BoundGetExpr(obj, e.Name.Lexeme, memberType, e.Location);
     }
 
     private BoundNewExpr BindNew(NewExpr e)
@@ -496,7 +513,13 @@ public class Binder
         _logger.Debug("Bind:4", $"Binding new expression", e.Location);
         var targetType = ResolveUserType(e.TypeName.Lexeme, e.Location);
         var args = e.Arguments.Select(BindExpr).ToList();
-        return new BoundNewExpr(targetType, args, targetType);
+        BoundConstructor? ctor = null;
+        if (targetType is BoundUserDefinedType udt && _scope.TryResolveBoundType(udt.QualifiedName, out var decl) &&
+            decl is BoundClass c)
+        {
+            ctor = c.Constructors.FirstOrDefault(ct => ct.Parameters.Count == args.Count) ?? c.Constructors.FirstOrDefault();
+        }
+        return new BoundNewExpr(targetType, args, ctor, targetType, e.Location);
     }
 
     private BoundType ResolveTypeNode(TypeNode typeNode) => typeNode switch
@@ -528,6 +551,35 @@ public class Binder
         
         _logger.Error("Bind:4", $"Unresolved type: '{generic.TypeToken.Lexeme}'.", generic.Location);
         return new BoundErrorType(generic.TypeToken.Lexeme);
+    }
+
+    private BoundType ResolveMemberTypeFallback(BoundType objType, string memberName, TokenLocation location)
+    {
+        if (_scope.TryResolveMember(objType, memberName, out var memberType) && memberType is not null)
+            return memberType;
+        
+        _logger.Error("Bind:4", $"'{memberName}' is not a member of '{objType}'.", location);
+        return new BoundErrorType(memberName);
+    }
+
+    private IBoundInvocable? ResolveInvocableMember(BoundType type, string memberName)
+    {
+        var objectMethod = _scope.GetObjectMethods().FirstOrDefault(m => m.Name == memberName);
+        if (objectMethod is not null)
+            return objectMethod;
+
+        if (type is BoundUserDefinedType userType && _scope.TryResolveBoundType(userType.QualifiedName, out var decl) &&
+            decl is not null)
+        {
+            return decl switch
+            {
+                BoundClass c => c.Methods.FirstOrDefault(m => m.Name == memberName),
+                BoundEnum e => e.Methods.FirstOrDefault(m => m.Name == memberName),
+                _ => null
+            };
+        }
+
+        return null;
     }
 
     private static bool IsBuiltInType(string name) => name switch

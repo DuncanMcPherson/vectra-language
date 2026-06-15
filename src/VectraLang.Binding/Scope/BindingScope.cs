@@ -90,6 +90,7 @@ public class BindingScope
             memberType = boundTypeDecl switch
             {
                 BoundClass c => ResolveMemberFromBoundClass(c, memberName),
+                BoundEnum e => ResolveMemberFromBoundEnum(e, memberName),
                 _ => null
             };
             return memberType is not null;
@@ -110,6 +111,18 @@ public class BindingScope
         
         var method = decl.Methods.FirstOrDefault(m => m.Name == memberName);
         return method?.ReturnType;
+    }
+
+    private static BoundType? ResolveMemberFromBoundEnum(BoundEnum decl, string memberName)
+    {
+        var variant = decl.Variants.FirstOrDefault(v => v.Name == memberName);
+        if (variant is not null) return new BoundUserDefinedType(decl.QualifiedName, decl.Source);
+        
+        var method = decl.Methods.FirstOrDefault(m => m.Name == memberName);
+        if (method is not null) return method.ReturnType;
+        
+        var field = decl.Fields.FirstOrDefault(f => f.Name == memberName);
+        return field?.Type;
     }
 
     public bool TryRegisterSpace(SpaceDecl space, out bool alreadyExists)

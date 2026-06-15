@@ -276,10 +276,6 @@ public class Analyzer(IVectraLogger logger)
             AnalyzeStatement(stmt.ElseBranch, elseContext);
             context.HasReturn = thenContext.HasReturn && elseContext.HasReturn;
         }
-        // else
-        // {
-        // context.HasReturn = thenContext.HasReturn;
-        // }
     }
 
     private void AnalyzeWhile(BoundWhileStmt stmt, AnalysisContext context)
@@ -345,7 +341,7 @@ public class Analyzer(IVectraLogger logger)
             BoundUnaryExpr u => AnalyzeUnary(u, context),
             BoundAssignExpr a => AnalyzeAssign(a, context),
             BoundGroupingExpr g => AnalyzeExpr(g.Inner, context),
-            BoundNewExpr n => n.Type,
+            BoundNewExpr n => AnalyzeNew(n, context),
             BoundErrorExpr => new BoundErrorType("error"),
             _ => new BoundErrorType("unknown")
         };
@@ -421,9 +417,38 @@ public class Analyzer(IVectraLogger logger)
 
     private BoundType AnalyzeCall(BoundCallExpr expr, AnalysisContext context)
     {
-        foreach (var arg in expr.Arguments)
-            AnalyzeExpr(arg, context);
+        var argTypes = expr.Arguments.Select(a => AnalyzeExpr(a, context)).ToList();
+
+        if (expr.ResolvedTarget is null)
+            return expr.Type; // unresolved, binder reported it
+
+        ValidateArguments(expr.ResolvedTarget.Name, expr.ResolvedTarget.Parameters, argTypes, expr.Location);
+        return expr.ResolvedTarget.ReturnType;
+    }
+
+    private BoundType AnalyzeNew(BoundNewExpr expr, AnalysisContext context)
+    {
+        var argTypes = expr.Arguments.Select(a => AnalyzeExpr(a, context)).ToList();
+        
+        if (expr.ResolvedConstructor is not null)
+            ValidateArguments($"ctor '{expr.ResolvedConstructor.Name}'", expr.ResolvedConstructor.Parameters, argTypes, GetLocation(expr));
+        else if (expr.Arguments.Count > 0 && expr.TargetType is BoundUserDefinedType)
+            logger.Error(Phase, $"No constructor on '{expr.TargetType}' accepts {expr.Arguments.Count} arguments.", GetLocation(expr));
         return expr.Type;
+    }
+
+    private void ValidateArguments(string name, List<BoundParameter> parameters, List<BoundType> argTypes,
+        TokenLocation? location)
+    {
+        if (parameters.Count != argTypes.Count)
+        {
+            logger.Error(Phase, $"Expected {parameters.Count} argument(s) for {name} but got {argTypes.Count}", location);
+            return;
+        }
+        
+        for (var i = 0; i < parameters.Count; i++)
+            if (!IsAssignableFrom(parameters[i].Type, argTypes[i]))
+                logger.Error(Phase, $"Expected argument {i + 1} of {name} to be of type {parameters[i].Type} but got {argTypes[i]}", location);
     }
 
     private static bool IsNumeric(BoundType type) => type is BoundPrimitiveType
@@ -457,21 +482,19 @@ public class Analyzer(IVectraLogger logger)
         return false;
     }
 
-    private BoundType LogAndReturnError(string message, TokenLocation? location)
+    private BoundType LogAndReturnError(string message, TokenLocation location)
     {
         logger.Error(Phase, message, location);
         return new BoundErrorType("error");
     }
 
-    private static TokenLocation? GetLocation(BoundStmt _)
+    private static TokenLocation GetLocation(BoundStmt s)
     {
-        // TODO: Implement
-        return null;
+        return s.Location;
     }
 
-    private static TokenLocation? GetLocation(BoundExpr _)
+    private static TokenLocation GetLocation(BoundExpr e)
     {
-        // TODO: Implement
-        return null;
+        return e.Location;
     }
 }
