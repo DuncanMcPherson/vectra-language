@@ -15,7 +15,9 @@
       <ProjectReference Include="..\VectraLang.Analysis\VectraLang.Analysis.csproj" />
       <ProjectReference Include="..\VectraLang.Ast\VectraLang.Ast.csproj" />
       <ProjectReference Include="..\VectraLang.Binding\VectraLang.Binding.csproj" />
+      <ProjectReference Include="..\VectraLang.Bytecode\VectraLang.Bytecode.csproj" />
       <ProjectReference Include="..\VectraLang.Interpreter\VectraLang.Interpreter.csproj" />
+      <ProjectReference Include="..\VectraLang.Lowering\VectraLang.Lowering.csproj" />
       <ProjectReference Include="..\VectraLang.ModuleLoader\VectraLang.ModuleLoader.csproj" />
     </ItemGroup>
 
