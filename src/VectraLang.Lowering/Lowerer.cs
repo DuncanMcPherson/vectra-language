@@ -1,8 +1,10 @@
+using VectraLang.Ast.Tokens;
 using VectraLang.Binding;
 using VectraLang.Binding.Nodes;
 using VectraLang.Binding.Scope;
 using VectraLang.Bytecode;
 using VectraLang.Core.Diagnostics;
+using VectraLang.Lowering.Helpers;
 
 namespace VectraLang.Lowering;
 
@@ -17,8 +19,9 @@ public class Lowerer(IVectraLogger logger)
 
     private readonly Dictionary<string, ushort> _methodIndices = new();
     private readonly Dictionary<string, ushort> _typeIndices = new();
-    private ushort _localCount = 0;
+    private ushort _localCount;
     private readonly Dictionary<string, ushort> _localSlots = new();
+    private readonly Stack<LoopContext> _loopContexts = new();
 
     public LoweredModule Lower(BindingResult result)
     {
@@ -35,23 +38,6 @@ public class Lowerer(IVectraLogger logger)
         if (result.BoundRoot is not BoundPackage p)
             throw new InvalidOperationException("Expected a package binding result");
         return p.Modules.Select(m => LowerModule(m, result.Scope)).ToList();
-    }
-
-    private void ResetForModule()
-    {
-        _constants = new ConstantPool();
-        _types = new TypeTable();
-        _methods = new MethodTable();
-        _imports = new ImportTable();
-        _methodIndices.Clear();
-        _typeIndices.Clear();
-        ResetLocals();
-    }
-
-    private void ResetLocals()
-    {
-        _localCount = 0;
-        _localSlots.Clear();
     }
 
     private LoweredModule LowerFile(BoundFile file, BindingScope scope)
@@ -266,9 +252,490 @@ public class Lowerer(IVectraLogger logger)
         _methods.Replace(methodIndex, lowered);
     }
 
+    private void LowerStatement(BoundStmt stmt, List<ushort> instructions)
+    {
+        switch (stmt)
+        {
+            case BoundBlockStmt block:
+                LowerBlock(block, instructions);
+                break;
+            case BoundVarDeclStmt varDeclStmt:
+                LowerVarDecl(varDeclStmt, instructions);
+                break;
+            case BoundExprStmt exprStmt:
+                LowerExpr(exprStmt.Expression, instructions);
+                instructions.Add((ushort)OpCode.POP);
+                break;
+            case BoundIfStmt ifStmt:
+                LowerIf(ifStmt, instructions);
+                break;
+            case BoundWhileStmt whileStmt:
+                LowerWhile(whileStmt, instructions);
+                break;
+            case BoundForStmt forStmt:
+                LowerFor(forStmt, instructions);
+                break;
+            case BoundReturnStmt returnStmt:
+                LowerReturn(returnStmt, instructions);
+                break;
+            case BoundBreakStmt:
+                LowerBreak(instructions);
+                break;
+            case BoundContinueStmt:
+                LowerContinue(instructions);
+                break;
+            case BoundErrorStmt:
+                // Already reported
+                break;
+            default:
+                logger.Warning(Phase, $"Unexpected stmt type: {stmt.GetType().Name}");
+                break;
+        }
+    }
+
+    private void LowerBlock(BoundBlockStmt block, List<ushort> instructions)
+    {
+        foreach (var stmt in block.Statements)
+            LowerStatement(stmt, instructions);
+    }
+
+    private void LowerVarDecl(BoundVarDeclStmt decl, List<ushort> instructions)
+    {
+        var slot = AllocateSlot();
+        _localSlots[decl.Name] = slot;
+
+        if (decl.Initializer is not null)
+        {
+            LowerExpr(decl.Initializer, instructions);
+        }
+        else
+        {
+            instructions.Add((ushort)OpCode.PUSH_NULL);
+        }
+        instructions.Add((ushort)OpCode.STORE_LOCAL);
+        instructions.Add(slot);
+    }
+
+    private void LowerIf(BoundIfStmt ifStmt, List<ushort> instructions)
+    {
+        LowerExpr(ifStmt.Condition, instructions);
+        var thenPatch = new BackpatchList();
+        instructions.Add((ushort)OpCode.JMP_FALSE);
+        thenPatch.Add(instructions.Count);
+        instructions.Add(0); // placeholder
+        
+        LowerStatement(ifStmt.ThenBranch, instructions);
+
+        if (ifStmt.ElseBranch is not null)
+        {
+            var elsePatch = new BackpatchList();
+            instructions.Add((ushort)OpCode.JMP);
+            elsePatch.Add(instructions.Count);
+            instructions.Add(0); // placeholder
+            
+            thenPatch.PatchAll(instructions);
+            
+            LowerStatement(ifStmt.ElseBranch, instructions);
+            
+            elsePatch.PatchAll(instructions);
+        }
+        else
+        {
+            thenPatch.PatchAll(instructions);
+        }
+    }
+
+    private void LowerFor(BoundForStmt stmt, List<ushort> instructions)
+    {
+        if (stmt.Initializer is not null)
+            LowerStatement(stmt.Initializer, instructions);
+        
+        var conditionTarget = (ushort)instructions.Count;
+        
+        var exitPatch = new BackpatchList();
+        if (stmt.Condition is not null)
+        {
+            LowerExpr(stmt.Condition, instructions);
+            instructions.Add((ushort)OpCode.JMP_FALSE);
+            exitPatch.Add(instructions.Count);
+            instructions.Add(0);
+        }
+        
+        var loopCtx = new LoopContext();
+        _loopContexts.Push(loopCtx);
+        
+        LowerStatement(stmt.Body, instructions);
+        
+        var incrementTarget = (ushort)instructions.Count;
+        loopCtx.SetContinueTarget(incrementTarget);
+        loopCtx.ContinueJumps.PatchAll(instructions);
+
+        if (stmt.Increment is not null)
+        {
+            LowerExpr(stmt.Increment, instructions);
+            instructions.Add((ushort)OpCode.POP);
+        }
+        
+        instructions.Add((ushort)OpCode.JMP);
+        instructions.Add(conditionTarget);
+        
+        exitPatch.PatchAll(instructions);
+        loopCtx.BreakJumps.PatchAll(instructions);
+        
+        _loopContexts.Pop();
+    }
+
+    private void LowerReturn(BoundReturnStmt stmt, List<ushort> instructions)
+    {
+        if (stmt.Value is not null)
+        {
+            LowerExpr(stmt.Value, instructions);
+            instructions.Add((ushort)OpCode.RET_VAL);
+        }
+        else
+        {
+            instructions.Add((ushort)OpCode.RET);
+        }
+    }
+
+    private void LowerContinue(List<ushort> instructions)
+    {
+        if (_loopContexts.Count == 0)
+        {
+            logger.Error(Phase, "Continue outside of loop");
+            return;
+        }
+
+        var ctx = _loopContexts.Peek();
+        instructions.Add((ushort)OpCode.JMP);
+
+        ctx.ContinueJumps.Add(instructions.Count);
+        instructions.Add(0);
+    }
+
+    private void LowerBreak(List<ushort> instructions)
+    {
+        if (_loopContexts.Count == 0)
+        {
+            logger.Error(Phase, "Break outside of loop");
+            return;
+        }
+        
+        var ctx = _loopContexts.Peek();
+        instructions.Add((ushort)OpCode.JMP);
+        
+        ctx.BreakJumps.Add(instructions.Count);
+        instructions.Add(0);
+    }
+
+    private void LowerWhile(BoundWhileStmt stmt, List<ushort> instructions)
+    {
+        var continueTarget = (ushort)instructions.Count;
+        var loopCtx = new LoopContext();
+        loopCtx.SetContinueTarget(continueTarget);
+        _loopContexts.Push(loopCtx);
+        
+        LowerExpr(stmt.Condition, instructions);
+        
+        var exitPatch = new BackpatchList();
+        instructions.Add((ushort)OpCode.JMP_FALSE);
+        exitPatch.Add(instructions.Count);
+        instructions.Add(0);
+        
+        LowerStatement(stmt.Body, instructions);
+        
+        loopCtx.ContinueJumps.PatchAll(instructions);
+        
+        instructions.Add((ushort)OpCode.JMP);
+        instructions.Add(continueTarget);
+        
+        exitPatch.PatchAll(instructions);
+        loopCtx.BreakJumps.PatchAll(instructions);
+        _loopContexts.Pop();
+    }
+
+    private void LowerExpr(BoundExpr expr, List<ushort> instructions)
+    {
+        switch (expr)
+        {
+            case BoundIntegerLiteralExpr i:
+                LowerIntLiteral(i, instructions);
+                break;
+            case BoundFloatLiteralExpr f:
+                LowerFloatLiteral(f, instructions);
+                break;
+            case BoundStringLiteralExpr s:
+                LowerStringLiteral(s, instructions);
+                break;
+            case BoundBoolLiteralExpr b:
+                instructions.Add((ushort)OpCode.PUSH_BOOL);
+                instructions.Add(b.Value ? (ushort)1 : (ushort)0);
+                break;
+            case BoundNullLiteralExpr:
+                instructions.Add((ushort)OpCode.PUSH_NULL);
+                break;
+            case BoundVariableExpr v:
+                LowerVariable(v, instructions);
+                break;
+            case BoundAssignExpr a:
+                LowerAssign(a, instructions);
+                break;
+            case BoundBinaryExpr b:
+                LowerBinary(b, instructions);
+                break;
+            case BoundUnaryExpr u:
+                LowerUnary(u, instructions);
+                break;
+            case BoundGroupingExpr g:
+                LowerExpr(g.Inner, instructions);
+                break;
+            case BoundCallExpr c:
+                LowerCall(c, instructions);
+                break;
+            case BoundGetExpr g:
+                LowerGet(g, instructions);
+                break;
+            case BoundNewExpr n:
+                LowerNew(n, instructions);
+                break;
+            case BoundErrorExpr:
+                break; // already reported
+            default:
+                logger.Warning(Phase, $"Unknown expression type: {expr.GetType().Name}");
+                break;
+        }
+    }
+
+    private void LowerIntLiteral(BoundIntegerLiteralExpr expr, List<ushort> instructions)
+    {
+        var idx = _constants.AddInt(expr.Value);
+        instructions.Add((ushort)OpCode.PUSH_INT);
+        instructions.Add(idx);
+    }
+    
+    private void LowerFloatLiteral(BoundFloatLiteralExpr expr, List<ushort> instructions)
+    {
+        var idx = _constants.AddFloat(expr.Value);
+        instructions.Add((ushort)OpCode.PUSH_FLOAT);
+        instructions.Add(idx);
+    }
+
+    private void LowerStringLiteral(BoundStringLiteralExpr expr, List<ushort> instructions)
+    {
+        var idx = _constants.AddString(expr.Value);
+        instructions.Add((ushort)OpCode.PUSH_STRING);
+        instructions.Add(idx);
+    }
+
+    private void LowerVariable(BoundVariableExpr expr, List<ushort> instructions)
+    {
+        if (_localSlots.TryGetValue(expr.Name, out var slot))
+        {
+            instructions.Add((ushort)OpCode.LOAD_LOCAL);
+            instructions.Add(slot);
+            return;
+        }
+        /* TODO: Evaluate. There are 3 different kinds of Variable expressions.
+         * Actual variables (this, name, etc), Type references (People, Program), and Function references (PrintLine, ReadLine, etc).
+         * This could break when we try to resolve Built in functions
+        */
+        
+        // Could be a type reference (e.g. People.Student) — handled by LowerGet
+        // If we get here it's an error
+        logger.Error(Phase, $"Unresolved variable '{expr.Name}' during lowering.");
+    }
+
+    private void LowerAssign(BoundAssignExpr expr, List<ushort> instructions)
+    {
+        LowerExpr(expr.Value, instructions);
+
+        switch (expr.Target)
+        {
+            case BoundVariableExpr v:
+                if (_localSlots.TryGetValue(v.Name, out var slot))
+                {
+                    instructions.Add((ushort)OpCode.STORE_LOCAL);
+                    instructions.Add(slot);
+                }
+                else
+                    logger.Error(Phase, $"Unresolved assignment target '{v.Name}'.");
+                break;
+            case BoundGetExpr g:
+                LowerExpr(g, instructions);
+                var fieldIndex = ResolveFieldIndex(g.Object.Type, g.MemberName);
+                instructions.Add((ushort)OpCode.SET_FIELD);
+                instructions.Add(fieldIndex);
+                break;
+            default:
+                logger.Error(Phase, $"Unknown assignment target '{expr.Target.GetType().Name}'.");
+                break;
+        }
+    }
+    
+    private void LowerBinary(BoundBinaryExpr expr, List<ushort> instructions)
+    {
+        LowerExpr(expr.Left, instructions);
+        LowerExpr(expr.Right, instructions);
+
+        // String concatenation via + operator
+        if (expr.Operator.Type == TokenType.Plus &&
+            (expr.Left.Type is BoundPrimitiveType { Name: "string" } ||
+             expr.Right.Type is BoundPrimitiveType { Name: "string" }))
+        {
+            instructions.Add((ushort)OpCode.CONCAT);
+            return;
+        }
+
+        var opCode = expr.Operator.Type switch
+        {
+            TokenType.Plus => OpCode.ADD,
+            TokenType.Minus => OpCode.SUB,
+            TokenType.Star => OpCode.MUL,
+            TokenType.Slash => OpCode.DIV,
+            TokenType.Percent => OpCode.MOD,
+            TokenType.EqualEqual => OpCode.EQ,
+            TokenType.BangEqual => OpCode.NEQ,
+            TokenType.Less => OpCode.LT,
+            TokenType.LessEqual => OpCode.LTE,
+            TokenType.Greater => OpCode.GT,
+            TokenType.GreaterEqual => OpCode.GTE,
+            TokenType.AmpAmp => OpCode.AND,
+            TokenType.PipePipe => OpCode.OR,
+            _ => throw new InvalidOperationException($"Unknown binary operator: {expr.Operator.Lexeme}")
+        };
+
+        instructions.Add((ushort)opCode);
+    }
+    
+    private void LowerUnary(BoundUnaryExpr expr, List<ushort> instructions)
+    {
+        LowerExpr(expr.Operand, instructions);
+
+        var opCode = expr.Operator.Type switch
+        {
+            TokenType.Minus => OpCode.NEG,
+            TokenType.Bang => OpCode.NOT,
+            _ => throw new InvalidOperationException($"Unknown unary operator: {expr.Operator.Lexeme}")
+        };
+
+        instructions.Add((ushort)opCode);
+    }
+
+    private void LowerCall(BoundCallExpr expr, List<ushort> instructions)
+    {
+        foreach (var arg in expr.Arguments)
+            LowerExpr(arg, instructions);
+        
+        var argCount = (ushort)expr.Arguments.Count;
+
+        switch (expr.ResolvedTarget)
+        {
+            case BoundBuiltInFunction fn:
+                if (StdLib.TryResolveFunction(fn.Name, out var fnIndex))
+                {
+                    instructions.Add((ushort)OpCode.CALL_EXTERN);
+                    instructions.Add(StdLib.ModuleIndex);
+                    instructions.Add(fnIndex);
+                    instructions.Add(argCount);
+                }
+                else
+                    logger.Error(Phase, $"Unresolved built-in function '{fn.Name}'.");
+
+                break;
+            case BoundBuiltInMethod m:
+                if (expr.Callee is BoundGetExpr g)
+                    LowerExpr(g, instructions);
+                if (StdLib.TryResolveObjectMethod(m.Name, out var mIdx))
+                {
+                    instructions.Add((ushort)OpCode.CALL_EXTERN);
+                    instructions.Add(StdLib.ModuleIndex);
+                    instructions.Add(mIdx);
+                    instructions.Add(argCount);
+                }
+                else
+                {
+                    logger.Error(Phase, $"Unresolved object method '{m.Name}'.");
+                }
+
+                break;
+            case BoundMethod m:
+                var key = GetCallableKey(m);
+                if (_methodIndices.TryGetValue(key, out var index))
+                {
+                    instructions.Add((ushort)OpCode.CALL);
+                    instructions.Add(index);
+                    instructions.Add(argCount);
+                }
+                else
+                {
+                    logger.Error(Phase, $"Unresolved method '{m.Name}'.");
+                }
+
+                break;
+            case null:
+                logger.Error(Phase, "Call expression has no resolved target.");
+                break;
+            default:
+                logger.Error(Phase, $"Unknown callable method target type '{expr.ResolvedTarget.GetType().Name}'.");
+                break;
+        }
+        /*
+         * TODO: This might not be complete yet. I have not seen anything that suggests that we have any calling into getters and setters
+         */
+    }
+
+    private void LowerGet(BoundGetExpr expr, List<ushort> instructions)
+    {
+        LowerExpr(expr.Object, instructions);
+        var fieldIndex = ResolveFieldIndex(expr.Object.Type, expr.MemberName);
+        instructions.Add((ushort)OpCode.GET_FIELD);
+        instructions.Add(fieldIndex);
+    }
+
+    private void LowerNew(BoundNewExpr expr, List<ushort> instructions)
+    {
+        if (!_typeIndices.TryGetValue(expr.TargetType.DisplayName, out var typeIndex))
+        {
+            logger.Error(Phase, $"Unresolved type '{expr.TargetType.DisplayName}' during lowering");
+            return;
+        }
+        
+        instructions.Add((ushort)OpCode.ALLOC);
+        instructions.Add(typeIndex);
+        
+        foreach (var arg in expr.Arguments)
+            LowerExpr(arg, instructions);
+        
+        if (expr.ResolvedConstructor is not null)
+        {
+            var ctorKey = GetCallableKey(expr.ResolvedConstructor);
+            if (_methodIndices.TryGetValue(ctorKey, out var ctorIdx))
+            {
+                instructions.Add((ushort)OpCode.CALL);
+                instructions.Add(ctorIdx);
+                instructions.Add((ushort)expr.Arguments.Count);
+            }
+            else
+                logger.Error(Phase, $"Unresolved constructor '{ctorKey}' during lowering.");
+        }
+    }
+
     #endregion
 
     #region Utilities
+
+    private ushort ResolveFieldIndex(BoundType objType, string memberName)
+    {
+        if (objType is BoundUserDefinedType userType && _typeIndices.TryGetValue(userType.QualifiedName, out var typeIdx))
+        {
+            var type = _types.Get(typeIdx);
+            var fieldIdx = type.Fields.FindIndex(f => f.Name == memberName);
+            if (fieldIdx >= 0) return (ushort)fieldIdx;
+        }
+        
+        logger.Error(Phase, $"Unresolved field '{memberName}' on '{objType.DisplayName}' during lowering");
+        return 0;
+    }
 
     private static string GetCallableKey(BoundCallable callable)
     {
@@ -292,6 +759,31 @@ public class Lowerer(IVectraLogger logger)
         if (existing is not null)
             return (ushort)_imports.All.ToList().IndexOf(existing);
         return _imports.Add(stdlibName, StdLib.ModuleIndex);
+    }
+
+    private ushort AllocateSlot()
+    {
+        var slot = _localCount;
+        _localCount++;
+        return slot;
+    }
+    
+    private void ResetForModule()
+    {
+        _constants = new ConstantPool();
+        _types = new TypeTable();
+        _methods = new MethodTable();
+        _imports = new ImportTable();
+        _methodIndices.Clear();
+        _typeIndices.Clear();
+        ResetLocals();
+    }
+
+    private void ResetLocals()
+    {
+        _localCount = 0;
+        _localSlots.Clear();
+        _loopContexts.Clear();
     }
 
     #endregion

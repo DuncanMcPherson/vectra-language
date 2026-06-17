@@ -5,6 +5,7 @@ using VectraLang.Analysis;
 using VectraLang.Ast;
 using VectraLang.Core;
 using VectraLang.Core.Diagnostics;
+using VectraLang.Lowering;
 using VectraLang.ModuleLoader;
 
 namespace VectraLang.Commands;
@@ -72,6 +73,8 @@ public class BuildCommand : AsyncCommand<BuildCommand.Settings>
             var analyzer = new Analyzer(logger);
             analyzer.Analyze(program);
 
+            var lowerer = new Lowerer(logger);
+            var lowered = lowerer.Lower(program);
             return 0;
         }
         catch (Exception e)
@@ -147,6 +150,8 @@ public class BuildCommand : AsyncCommand<BuildCommand.Settings>
             logger.Info("Analysis", "Starting analysis...");
             var analyzer = new Analyzer(logger);
             analyzer.Analyze(program);
+            var lowerer = new Lowerer(logger);
+            var lowered = lowerer.LowerPackage(program);
             return 0;
         }
         catch (Exception e)

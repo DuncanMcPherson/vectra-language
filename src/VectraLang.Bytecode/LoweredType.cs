@@ -2,7 +2,7 @@ namespace VectraLang.Bytecode;
 
 public record LoweredType(
     string QualifiedName,
-    List<LoweredField> Field,
+    List<LoweredField> Fields,
     List<ushort> MethodIndices);
 
 public sealed record LoweredField(
