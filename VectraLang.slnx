@@ -51,6 +51,7 @@
     <File Path=".github\pull_request_template.md" />
     <File Path=".gitignore" />
     <File Path=".releaserc.json" />
+    <File Path="LICENSE" />
     <File Path="package.json" />
     <File Path="README.md" />
   </Folder>
