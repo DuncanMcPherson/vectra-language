@@ -1,3 +1,4 @@
+using VectraLang.Ast.AstNodes;
 using VectraLang.Ast.Tokens;
 using VectraLang.Binding;
 using VectraLang.Binding.Nodes;
@@ -19,6 +20,7 @@ public class Lowerer(IVectraLogger logger)
 
     private readonly Dictionary<string, ushort> _methodIndices = new();
     private readonly Dictionary<string, ushort> _typeIndices = new();
+    private readonly Dictionary<string, BoundClass> _boundClasses = new(); 
     private ushort _localCount;
     private readonly Dictionary<string, ushort> _localSlots = new();
     private readonly Stack<LoopContext> _loopContexts = new();
@@ -104,6 +106,7 @@ public class Lowerer(IVectraLogger logger)
         var type = new LoweredType(cls.QualifiedName, loweredFields, []);
         var index = _types.Add(type);
         _typeIndices.Add(cls.QualifiedName, index);
+        _boundClasses.Add(cls.QualifiedName, cls);
     }
 
     private void RegisterCallablesInSpace(BoundSpace space)
@@ -535,13 +538,9 @@ public class Lowerer(IVectraLogger logger)
             instructions.Add(slot);
             return;
         }
-        /* TODO: Evaluate. There are 3 different kinds of Variable expressions.
-         * Actual variables (this, name, etc), Type references (People, Program), and Function references (PrintLine, ReadLine, etc).
-         * This could break when we try to resolve Built in functions
-        */
         
-        // Could be a type reference (e.g. People.Student) — handled by LowerGet
-        // If we get here it's an error
+        // Could be a type reference (e.g., People.Student) — handled by LowerGet
+        // If we get here, it's an error
         logger.Error(Phase, $"Unresolved variable '{expr.Name}' during lowering.");
     }
 
@@ -561,7 +560,20 @@ public class Lowerer(IVectraLogger logger)
                     logger.Error(Phase, $"Unresolved assignment target '{v.Name}'.");
                 break;
             case BoundGetExpr g:
+                
+                //Check if it is a property - emit set call
+                if (TryResolvePropertySetter(g.Object.Type, g.MemberName, out var setterIdx))
+                {
+                    LowerExpr(g.Object, instructions);
+                    LowerExpr(expr.Value, instructions);
+                    instructions.Add((ushort)OpCode.CALL);
+                    instructions.Add(setterIdx);
+                    instructions.Add(1); // setters always have one arg
+                    return;
+                }
+                
                 LowerExpr(g, instructions);
+                // Otherwise, it's a field access
                 var fieldIndex = ResolveFieldIndex(g.Object.Type, g.MemberName);
                 instructions.Add((ushort)OpCode.SET_FIELD);
                 instructions.Add(fieldIndex);
@@ -687,6 +699,17 @@ public class Lowerer(IVectraLogger logger)
     private void LowerGet(BoundGetExpr expr, List<ushort> instructions)
     {
         LowerExpr(expr.Object, instructions);
+        
+        // Check for a property getter
+        if (TryResolvePropertyGetter(expr.Object.Type, expr.MemberName, out var getterIdx))
+        {
+            instructions.Add((ushort)OpCode.CALL);
+            instructions.Add(getterIdx);
+            instructions.Add(0); // getters never have args
+            return;
+        }
+        
+        // Otherwise, it's a field access
         var fieldIndex = ResolveFieldIndex(expr.Object.Type, expr.MemberName);
         instructions.Add((ushort)OpCode.GET_FIELD);
         instructions.Add(fieldIndex);
@@ -702,6 +725,9 @@ public class Lowerer(IVectraLogger logger)
         
         instructions.Add((ushort)OpCode.ALLOC);
         instructions.Add(typeIndex);
+        
+        // Initialize fields that have initializers
+        LowerFieldInitializers(expr.TargetType, instructions);
         
         foreach (var arg in expr.Arguments)
             LowerExpr(arg, instructions);
@@ -720,9 +746,54 @@ public class Lowerer(IVectraLogger logger)
         }
     }
 
+    private void LowerFieldInitializers(BoundType targetType, List<ushort> instructions)
+    {
+        if (targetType is not BoundUserDefinedType userType) return; // This should not happen, but if it does, we have nothing to initialize
+        if (userType.Declaration is not ClassDecl) return; // At the moment, only classes can have fields
+
+        if (!_boundClasses.TryGetValue(userType.QualifiedName, out var cls)) return;
+
+        foreach (var field in cls.Fields)
+        {
+            if (field.Initializer is null) continue;
+            
+            instructions.Add((ushort)OpCode.DUP);
+            LowerExpr(field.Initializer, instructions);
+            var fieldIdx = ResolveFieldIndex(targetType, field.Name);
+            instructions.Add((ushort)OpCode.SET_FIELD);
+            instructions.Add(fieldIdx);
+        }
+    }
+
     #endregion
 
     #region Utilities
+
+    private bool TryResolvePropertyGetter(BoundType objType, string memberName, out ushort methodIdx)
+    {
+        methodIdx = 0;
+        if (objType is not BoundUserDefinedType userType) return false;
+        if (!_boundClasses.TryGetValue(userType.QualifiedName, out var cls)) return false;
+
+        var prop = cls.Properties.Find(p => p.Name == memberName);
+        if (prop?.Getter is null) return false;
+
+        var key = GetCallableKey(prop.Getter);
+        return _methodIndices.TryGetValue(key, out methodIdx);
+    }
+
+    private bool TryResolvePropertySetter(BoundType objType, string memberName, out ushort methodIdx)
+    {
+        methodIdx = 0;
+        if (objType is not BoundUserDefinedType userType) return false;
+        if (!_boundClasses.TryGetValue(userType.QualifiedName, out var cls)) return false;
+        
+        var prop = cls.Properties.Find(p => p.Name == memberName);
+        if (prop?.Setter is null) return false;
+        
+        var key = GetCallableKey(prop.Setter);
+        return _methodIndices.TryGetValue(key, out methodIdx);
+    }
 
     private ushort ResolveFieldIndex(BoundType objType, string memberName)
     {
@@ -752,14 +823,14 @@ public class Lowerer(IVectraLogger logger)
         return $"{returnType} {callable.Name}({parameters})";
     }
 
-    private ushort GetOrAddStdLibImport()
-    {
-        const string stdlibName = "stdlib";
-        var existing = _imports.All.FirstOrDefault(i => i.ModuleName == stdlibName);
-        if (existing is not null)
-            return (ushort)_imports.All.ToList().IndexOf(existing);
-        return _imports.Add(stdlibName, StdLib.ModuleIndex);
-    }
+    // private ushort GetOrAddStdLibImport()
+    // {
+    //     const string stdlibName = "stdlib";
+    //     var existing = _imports.All.FirstOrDefault(i => i.ModuleName == stdlibName);
+    //     if (existing is not null)
+    //         return (ushort)_imports.All.ToList().IndexOf(existing);
+    //     return _imports.Add(stdlibName, StdLib.ModuleIndex);
+    // }
 
     private ushort AllocateSlot()
     {
@@ -776,6 +847,7 @@ public class Lowerer(IVectraLogger logger)
         _imports = new ImportTable();
         _methodIndices.Clear();
         _typeIndices.Clear();
+        _boundClasses.Clear();
         ResetLocals();
     }
 
