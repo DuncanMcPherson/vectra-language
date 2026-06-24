@@ -27,41 +27,41 @@ public class Binder
         var boundModules = new List<BoundModule>(package.Modules.Count);
         var allErrors = new List<string>();
 
-        foreach (var result in from module in package.Modules let binder = new Binder(_logger, sharedScope) select binder.Bind(module))
+        foreach (var result in from module in package.Modules
+                 let binder = new Binder(_logger, sharedScope)
+                 select binder.Bind(module))
         {
             allErrors.AddRange(result.Errors);
             if (result.BoundRoot is BoundModule bm)
                 boundModules.Add(bm);
         }
-        
+
         var boundPackage = new BoundPackage(package.PackageName, package.Version, boundModules);
         return new BindingResult(boundPackage, sharedScope, allErrors);
     }
 
     public BindingResult Bind(MergedModule module)
     {
-        if (module.SpaceDecls.Count == 0)
+        if (module.Files.Count == 0)
         {
-            _logger.Warning("Bind", $"Module '{module.ModuleName}' has no spaces. Skipping.");
+            _logger.Warning("Bind", $"Module '{module.ModuleName}' has no files. Skipping.");
             var bound = new BoundModule(module.ModuleName, [], module.IsExecutable, []);
             return new BindingResult(bound, _scope, _errors);
         }
-        
-        foreach (var space in module.SpaceDecls)
+
+        List<BoundSpace> boundSpaces = [];
+        List<string> resolvedImports = [];
+        foreach (var file in module.Files)
         {
-            PassOne(space);
+            PassOne(file.Space);
+            resolvedImports.AddRange(PassTwo(file.EnterDeclarations));
+            boundSpaces.Add(PassThree(file.Space));
         }
-        
-        // TODO: Preserve enter declarations from each file for cross-module binding
-        // Currently discarded during the merge
-        var resolvedImports = PassTwo(module.EnterDeclarations);
-        
-        var boundSpaces = module.SpaceDecls.Select(PassThree).ToList();
-        
+
         PassFour();
-        
+
         var boundModule = new BoundModule(module.ModuleName, boundSpaces, module.IsExecutable, resolvedImports);
-        
+
         return new BindingResult(boundModule, _scope, _errors);
     }
 
@@ -88,7 +88,8 @@ public class Binder
             _logger.Error("Bind:1", $"Space '{space.Name.Lexeme}' already declared.", space.Name.Location);
         foreach (var decl in space.Declarations.Where(decl => !_scope.TryRegisterType(decl)))
             _logger.Error("Bind:1", $"Type '{decl.Name.Lexeme}' already declared.", decl.Name.Location);
-        _logger.Debug("Bind:1", $"Registered space '{space.Name.Lexeme}' with {space.Declarations.Count} types and {space.Children.Count} spaces.");
+        _logger.Debug("Bind:1",
+            $"Registered space '{space.Name.Lexeme}' with {space.Declarations.Count} types and {space.Children.Count} spaces.");
         foreach (var child in space.Children)
             PassOne(child);
     }
@@ -103,7 +104,7 @@ public class Binder
                 resolved.Add(enter.QualifiedName);
             else
             {
-                _logger.Error("Bind:2", $"Unable to locate space '{enter.QualifiedName}'", enter.Location);                
+                _logger.Error("Bind:2", $"Unable to locate space '{enter.QualifiedName}'", enter.Location);
             }
         }
 
@@ -176,7 +177,7 @@ public class Binder
         var boundArgs = variant.Arguments.Select(BindExpr).ToList();
         // Overrides are full methods, same treatment as class methods
         var boundOverrides = variant.Overrides.Select(o => BindMethod(o, enumType)).ToList();
-        
+
         return new(variant.Name.Lexeme, boundArgs, boundOverrides, variant);
     }
 
@@ -209,8 +210,8 @@ public class Binder
             setter = new BoundPropertySetter(decl.Name.Lexeme, propertyType, classType, decl);
             _scope.RegisterPendingBody(setter, decl.Setter!);
         }
-        
-        return new BoundProperty(decl.Name.Lexeme, propertyType, decl, getter, setter);   
+
+        return new BoundProperty(decl.Name.Lexeme, propertyType, decl, getter, setter);
     }
 
     private BoundParameter BindParameter(ParameterNode param)
@@ -252,7 +253,7 @@ public class Binder
             classType,
             decl);
         _scope.RegisterPendingBody(ret, decl.Body);
-        _logger.Debug("Bind:3", $"Registered constructor body '{decl.Name.Lexeme}' for resolution in Pass 4.");       
+        _logger.Debug("Bind:3", $"Registered constructor body '{decl.Name.Lexeme}' for resolution in Pass 4.");
         return ret;
     }
 
@@ -263,16 +264,20 @@ public class Binder
         {
             var (callable, stmt) = _scope.DequeuePendingBody();
             _logger.Debug("Bind:4", $"Resolving body for '{callable.Name}'");
-            
+
             var resolved = callable switch
             {
-                BoundMethod m => new BoundMethodBody(BindBodyStatement(stmt, m.Parameters, m.ParentType, m.ReturnType), m.Source),
-                BoundConstructor c => new BoundConstructorBody(BindBodyStatement(stmt, c.Parameters, c.ParentType), c.Source),
-                BoundPropertyGetter g => new BoundPropertyGetterBody(BindBodyStatement(stmt, g.Parameters, g.ParentType, g.ReturnType), g.Source),
-                BoundPropertySetter s => new BoundPropertySetterBody(BindBodyStatement(stmt, s.Parameters, s.ParentType), s.Source),
+                BoundMethod m => new BoundMethodBody(BindBodyStatement(stmt, m.Parameters, m.ParentType, m.ReturnType),
+                    m.Source),
+                BoundConstructor c => new BoundConstructorBody(BindBodyStatement(stmt, c.Parameters, c.ParentType),
+                    c.Source),
+                BoundPropertyGetter g => new BoundPropertyGetterBody(
+                    BindBodyStatement(stmt, g.Parameters, g.ParentType, g.ReturnType), g.Source),
+                BoundPropertySetter s => new BoundPropertySetterBody(
+                    BindBodyStatement(stmt, s.Parameters, s.ParentType), s.Source),
                 _ => HandleUnknown(callable)
             };
-            
+
             if (resolved is not null)
                 _scope.RegisterResolvedBody(callable, resolved);
         }
@@ -285,11 +290,12 @@ public class Binder
         return null;
     }
 
-    private List<BoundStmt> BindBodyStatement(BlockStmt stmt, List<BoundParameter> parameters, BoundType parentType, BoundType? returnType = null)
+    private List<BoundStmt> BindBodyStatement(BlockStmt stmt, List<BoundParameter> parameters, BoundType parentType,
+        BoundType? returnType = null)
     {
         if (returnType is not null)
             _currentReturnType = returnType;
-        
+
         var previous = _localScope;
         _localScope = _localScope.CreateChildScope();
         try
@@ -297,8 +303,10 @@ public class Binder
             _localScope.TryDeclare("this", parentType);
             foreach (var p in parameters.Where(p => !_localScope.TryDeclare(p.Name, p.Type)))
             {
-                _logger.Error("Bind:4", $"Variable with name '{p.Name}' already declared in this scope.", p.Source.Location);
+                _logger.Error("Bind:4", $"Variable with name '{p.Name}' already declared in this scope.",
+                    p.Source.Location);
             }
+
             var ret = new List<BoundStmt>(stmt.Statements.Count);
             foreach (var s in stmt.Statements)
                 ret.Add(BindStatement(s));
@@ -357,8 +365,9 @@ public class Binder
         if (boundType is BoundInferredType && initializer is not null)
             boundType = initializer.Type;
         if (!_localScope.TryDeclare(decl.Name.Lexeme, boundType))
-            _logger.Error("Bind:4", $"Variable with name '{decl.Name.Lexeme}' already declared in this scope.", decl.Location);
-        
+            _logger.Error("Bind:4", $"Variable with name '{decl.Name.Lexeme}' already declared in this scope.",
+                decl.Location);
+
         return new BoundVarDeclStmt(decl.Name.Lexeme, boundType, initializer, decl.Location);
     }
 
@@ -448,7 +457,7 @@ public class Binder
             _logger.Debug("Bind:4", $"Binding variable expression '{e.Name.Lexeme}' as type", e.Location);
             return new BoundVariableExpr(e.Name.Lexeme, new BoundUserDefinedType(e.Name.Lexeme, decl), e.Location);
         }
-        
+
         _logger.Error("Bind:4", $"Unresolved variable: '{e.Name.Lexeme}'.", e.Location);
         return new BoundVariableExpr(e.Name.Lexeme, new BoundErrorType(e.Name.Lexeme), e.Location);
     }
@@ -496,6 +505,7 @@ public class Binder
                 return new BoundCallExpr(callee, args, target, target?.ReturnType ?? callee.Type, e.Location);
             }
         }
+
         var boundCallee = BindExpr(e.Callee);
         return new BoundCallExpr(boundCallee, args, target, target?.ReturnType ?? boundCallee.Type, e.Location);
     }
@@ -517,8 +527,10 @@ public class Binder
         if (targetType is BoundUserDefinedType udt && _scope.TryResolveBoundType(udt.QualifiedName, out var decl) &&
             decl is BoundClass c)
         {
-            ctor = c.Constructors.FirstOrDefault(ct => ct.Parameters.Count == args.Count) ?? c.Constructors.FirstOrDefault();
+            ctor = c.Constructors.FirstOrDefault(ct => ct.Parameters.Count == args.Count) ??
+                   c.Constructors.FirstOrDefault();
         }
+
         return new BoundNewExpr(targetType, args, ctor, targetType, e.Location);
     }
 
@@ -537,7 +549,7 @@ public class Binder
         _logger.Debug("Bind:4", $"Resolving user type '{name}'", location);
         if (_scope.TryResolveType(name, out var decl) && decl is not null)
             return new BoundUserDefinedType(name, decl);
-        
+
         _logger.Error("Bind:4", $"Unresolved type: '{name}'.", location);
         return new BoundErrorType(name);
     }
@@ -548,7 +560,7 @@ public class Binder
         var typeArgs = generic.TypeArguments.Select(ResolveTypeNode).ToList();
         if (_scope.TryResolveType(generic.TypeToken.Lexeme, out var decl) && decl is not null)
             return new BoundGenericType(generic.TypeToken.Lexeme, decl, typeArgs);
-        
+
         _logger.Error("Bind:4", $"Unresolved type: '{generic.TypeToken.Lexeme}'.", generic.Location);
         return new BoundErrorType(generic.TypeToken.Lexeme);
     }
@@ -557,7 +569,7 @@ public class Binder
     {
         if (_scope.TryResolveMember(objType, memberName, out var memberType) && memberType is not null)
             return memberType;
-        
+
         _logger.Error("Bind:4", $"'{memberName}' is not a member of '{objType}'.", location);
         return new BoundErrorType(memberName);
     }

@@ -39,8 +39,8 @@ public sealed class Interpreter
     public void Interpret(MergedPackage package)
     {
         foreach (var mod in package.Modules)
-            foreach (var space in mod.SpaceDecls)
-                RegisterTypes(space);
+            foreach (var file in mod.Files)
+                RegisterTypes(file.Space);
 
         var executables = package.Modules.Where(m => m.IsExecutable).ToList();
         if (executables.Count == 0)
@@ -49,8 +49,8 @@ public sealed class Interpreter
         VectraMethod? main = null;
         foreach (var module in executables)
         {
-            foreach (var space in module.SpaceDecls)
-                if (TryFindInSpace(space, out main) && main is not null)
+            foreach (var file in module.Files)
+                if (TryFindInSpace(file.Space, out main) && main is not null)
                     break;
         }
         
@@ -62,13 +62,13 @@ public sealed class Interpreter
 
     public void Interpret(MergedModule module)
     {
-        foreach (var space in module.SpaceDecls)
-            RegisterTypes(space);
+        foreach (var file in module.Files)
+            RegisterTypes(file.Space);
 
         VectraMethod? main = null;
         
-        foreach (var space in module.SpaceDecls)
-            if (TryFindInSpace(space, out main) && main is not null)
+        foreach (var file in module.Files)
+            if (TryFindInSpace(file.Space, out main) && main is not null)
                 break;
         
         if (main is null)
