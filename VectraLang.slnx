@@ -48,6 +48,7 @@
     <File Path="examples/SingleFileExamples/PropertyAccessExample.vec" />
   </Folder>
   <Folder Name="/Solution Items/">
+    <File Path=".github\pull_request_template.md" />
     <File Path=".gitignore" />
     <File Path=".releaserc.json" />
     <File Path="package.json" />
