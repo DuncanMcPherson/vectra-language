@@ -4,7 +4,6 @@ namespace VectraLang.ModuleLoader;
 
 public record MergedModule(
     string ModuleName,
-    List<SpaceDecl> SpaceDecls,
-    List<ITopLevelDecl> AllDeclarations,
     bool IsExecutable,
-    List<EnterDecl> EnterDeclarations);
+    List<VectraFile> Files,
+    List<string> Dependencies);
